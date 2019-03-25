@@ -10,28 +10,23 @@ namespace NTMiner.Vms {
         private readonly List<LangViewModel> _langVms = new List<LangViewModel>();
 
         private LangViewModels() {
-            Global.Access<LangAddedEvent>(
-                Guid.Parse("F0417261-877F-4310-895F-2B14099B2ABF"),
-                "添加了语言后刷新VM内存",
-                LogEnum.None,
+            VirtualRoot.On<LangSetRefreshedEvent>("刷新语言后刷新VM数据集", LogEnum.None,
+                action: message => {
+                    Init();
+                });
+            VirtualRoot.On<LangAddedEvent>("添加了语言后刷新VM内存", LogEnum.None,
                 action: message => {
                     _langVms.Add(new LangViewModel(message.Source));
                     OnPropertyChanged(nameof(LangVms));
                 });
-            Global.Access<LangUpdatedEvent>(
-                Guid.Parse("646181E6-044D-4D2F-B357-A3B376DAE680"),
-                "修改了语言后刷新VM内存",
-                LogEnum.None,
+            VirtualRoot.On<LangUpdatedEvent>("修改了语言后刷新VM内存", LogEnum.None,
                 action: message => {
                     LangViewModel langVm = _langVms.FirstOrDefault(a => a.Id == message.Source.GetId());
                     if (langVm != null) {
                         langVm.Update(message.Source);
                     }
                 });
-            Global.Access<LangRemovedEvent>(
-                Guid.Parse("3684144A-26C8-47B9-881D-E66930A6E87D"),
-                "删除了语言后刷新VM内存",
-                LogEnum.None,
+            VirtualRoot.On<LangRemovedEvent>("删除了语言后刷新VM内存", LogEnum.None,
                 action: message => {
                     LangViewModel langVm = _langVms.FirstOrDefault(a => a.Id == message.Source.GetId());
                     if (langVm != null) {
@@ -39,10 +34,15 @@ namespace NTMiner.Vms {
                         OnPropertyChanged(nameof(LangVms));
                     }
                 });
+            Init();
+        }
+
+        private void Init() {
+            _langVms.Clear();
             foreach (var lang in LangSet.Instance) {
                 _langVms.Add(new LangViewModel(lang));
             }
-            _currentLangVm = _langVms.FirstOrDefault(a => a.Id == Global.Lang.GetId());
+            _currentLangVm = _langVms.FirstOrDefault(a => a.Id == VirtualRoot.Lang.GetId());
             if (_currentLangVm == null) {
                 _currentLangVm = _langVms.First();
             }
@@ -55,7 +55,7 @@ namespace NTMiner.Vms {
                 if (_currentLangVm != value) {
                     _currentLangVm = value;
                     OnPropertyChanged(nameof(CurrentLangVm));
-                    Global.Lang = value;
+                    VirtualRoot.Lang = value;
                 }
             }
         }

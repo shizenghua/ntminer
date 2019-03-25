@@ -8,38 +8,31 @@ namespace NTMiner.Core.Kernels.Impl {
         private readonly INTMinerRoot _root;
         private readonly Dictionary<Guid, PoolKernelData> _dicById = new Dictionary<Guid, PoolKernelData>();
 
-        public PoolKernelSet(INTMinerRoot root) {
+        private readonly bool _isUseJson;
+        public PoolKernelSet(INTMinerRoot root, bool isUseJson) {
             _root = root;
-            Global.Access<AddPoolKernelCommand>(
-                Guid.Parse("B926F4A0-4318-493D-BCE1-CBE329AC7DD7"),
-                "处理添加矿池级内核命令",
-                LogEnum.None,
+            _isUseJson = isUseJson;
+            VirtualRoot.Window<AddPoolKernelCommand>("处理添加矿池级内核命令", LogEnum.DevConsole,
                 action: message => {
                     if (!_dicById.ContainsKey(message.Input.GetId())) {
                         var entity = new PoolKernelData().Update(message.Input);
                         _dicById.Add(message.Input.GetId(), entity);
-                        var repository = NTMinerRoot.CreateServerRepository<PoolKernelData>();
+                        var repository = NTMinerRoot.CreateServerRepository<PoolKernelData>(isUseJson);
                         repository.Add(entity);
-                        Global.Happened(new PoolKernelAddedEvent(message.Input));
+                        VirtualRoot.Happened(new PoolKernelAddedEvent(message.Input));
                     }
-                });
-            Global.Access<RemovePoolKernelCommand>(
-                Guid.Parse("151EC414-58E3-4752-8758-4742256D2297"),
-                "处理移除矿池级内核命令",
-                LogEnum.None,
+                }).AddToCollection(root.ContextHandlers);
+            VirtualRoot.Window<RemovePoolKernelCommand>("处理移除矿池级内核命令", LogEnum.DevConsole,
                 action: message => {
                     if (_dicById.ContainsKey(message.EntityId)) {
                         var entity = _dicById[message.EntityId];
                         _dicById.Remove(message.EntityId);
-                        var repository = NTMinerRoot.CreateServerRepository<PoolKernelData>();
+                        var repository = NTMinerRoot.CreateServerRepository<PoolKernelData>(isUseJson);
                         repository.Remove(message.EntityId);
-                        Global.Happened(new PoolKernelRemovedEvent(entity));
+                        VirtualRoot.Happened(new PoolKernelRemovedEvent(entity));
                     }
-                });
-            Global.Access<UpdatePoolKernelCommand>(
-                Guid.Parse("08843B3B-3F82-45D2-8B45-6B24F397A326"),
-                "更新矿池内核",
-                LogEnum.Log,
+                }).AddToCollection(root.ContextHandlers);
+            VirtualRoot.Window<UpdatePoolKernelCommand>("更新矿池内核", LogEnum.DevConsole,
                 action: (message) => {
                     InitOnece();
                     if (message == null || message.Input == null || message.Input.GetId() == Guid.Empty) {
@@ -52,13 +45,15 @@ namespace NTMiner.Core.Kernels.Impl {
                         return;
                     }
                     PoolKernelData entity = _dicById[message.Input.GetId()];
+                    if (ReferenceEquals(entity, message.Input)) {
+                        return;
+                    }
                     entity.Update(message.Input);
-                    var repository = NTMinerRoot.CreateServerRepository<PoolKernelData>();
+                    var repository = NTMinerRoot.CreateServerRepository<PoolKernelData>(isUseJson);
                     repository.Update(entity);
 
-                    Global.Happened(new PoolKernelUpdatedEvent(entity));
-                });
-            Global.Logger.InfoDebugLine(this.GetType().FullName + "接入总线");
+                    VirtualRoot.Happened(new PoolKernelUpdatedEvent(entity));
+                }).AddToCollection(root.ContextHandlers);
         }
 
         private bool _isInited = false;
@@ -81,7 +76,7 @@ namespace NTMiner.Core.Kernels.Impl {
         private void Init() {
             lock (_locker) {
                 if (!_isInited) {
-                    var repository = NTMinerRoot.CreateServerRepository<PoolKernelData>();
+                    var repository = NTMinerRoot.CreateServerRepository<PoolKernelData>(_isUseJson);
                     List<PoolKernelData> list = repository.GetAll().ToList();
                     foreach (IPool pool in _root.PoolSet) {
                         foreach (ICoinKernel coinKernel in _root.CoinKernelSet.Where(a => a.CoinId == pool.CoinId)) {

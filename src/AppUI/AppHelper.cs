@@ -1,4 +1,5 @@
-﻿using NTMiner.Views;
+﻿using NTMiner.MinerServer;
+using NTMiner.Views;
 using System;
 using System.Diagnostics;
 using System.Threading;
@@ -7,6 +8,9 @@ using System.Windows.Threading;
 
 namespace NTMiner {
     public static class AppHelper {
+        public static ExtendedNotifyIcon NotifyIcon;
+        public static Action<RemoteDesktopInput> RemoteDesktop;
+
         public static void RunAsAdministrator() {
             ProcessStartInfo startInfo = new ProcessStartInfo();
             startInfo.FileName = ClientId.AppFileFullName;
@@ -18,7 +22,6 @@ namespace NTMiner {
 
         #region Init
         public static void Init(Application app) {
-            Global.Logger.InfoDebugLine("AppHelper.Init start");
             AppDomain.CurrentDomain.UnhandledException += (object sender, UnhandledExceptionEventArgs e) => {
                 var exception = e.ExceptionObject as Exception;
                 if (exception != null) {
@@ -31,25 +34,42 @@ namespace NTMiner {
                 e.Handled = true;
             };
 
-            Execute.InitializeWithDispatcher();
+            UIThread.InitializeWithDispatcher();
             Thread.CurrentThread.CurrentUICulture = new System.Globalization.CultureInfo("zh-CN");
-            Global.Logger.InfoDebugLine("AppHelper.Init end");
         }
         #endregion
 
         #region ShowMainWindow
-        public static void ShowMainWindow(Application app, string appPipName) {
+        public static void ShowMainWindow(Application app, NTMinerAppType appType) {
             try {
-                if (!MinerClientService.Instance.ShowMainWindow(Global.Localhost)) {
-                    RestartNTMiner();
+                switch (appType) {
+                    case NTMinerAppType.MinerClient:
+                        Client.MinerClientService.ShowMainWindowAsync(WebApiConst.MinerClientPort, (isSuccess, exception) => {
+                            if (!isSuccess) {
+                                RestartNTMiner();
+                            }
+                            UIThread.Execute(() => {
+                                app.Shutdown();
+                            });
+                        });
+                        break;
+                    case NTMinerAppType.MinerStudio:
+                        Client.MinerStudioService.ShowMainWindowAsync(WebApiConst.MinerStudioPort, (isSuccess, exception) => {
+                            if (!isSuccess) {
+                                RestartNTMiner();
+                            }
+                            UIThread.Execute(() => {
+                                app.Shutdown();
+                            });
+                        });
+                        break;
+                    default:
+                        break;
                 }
-                Execute.OnUIThread(() => {
-                    app.Shutdown();
-                });
             }
             catch (Exception ex) {
                 RestartNTMiner();
-                Global.Logger.ErrorDebugLine(ex.Message, ex);
+                Logger.ErrorDebugLine(ex.Message, ex);
             }
         }
 
@@ -77,7 +97,7 @@ namespace NTMiner {
                 DialogWindow.ShowDialog(title: "验证失败", message: e.Message, icon: "Icon_Error");
             }
             else {
-                Global.Logger.ErrorDebugLine(e);
+                Logger.ErrorDebugLine(e);
             }
         }
         #endregion

@@ -10,13 +10,12 @@ namespace NTMiner.Core.Kernels.Impl {
         private readonly Dictionary<Guid, KernelOutputTranslaterData> _dicById = new Dictionary<Guid, KernelOutputTranslaterData>();
         private readonly Dictionary<Guid, List<KernelOutputTranslaterData>> _dicByKernelOutputId = new Dictionary<Guid, List<KernelOutputTranslaterData>>();
         private readonly INTMinerRoot _root;
+        private readonly bool _isUseJson;
 
-        public KernelOutputTranslaterSet(INTMinerRoot root) {
+        public KernelOutputTranslaterSet(INTMinerRoot root, bool isUseJson) {
             _root = root;
-            Global.Access<AddKernelOutputTranslaterCommand>(
-                Guid.Parse("d9da43ad-8fb7-4d6b-a8c7-ac0c1bbc4dd3"),
-                "添加内核输出翻译器",
-                LogEnum.Log,
+            _isUseJson = isUseJson;
+            VirtualRoot.Window<AddKernelOutputTranslaterCommand>("添加内核输出翻译器", LogEnum.DevConsole,
                 action: (message) => {
                     InitOnece();
                     if (message == null || message.Input == null || message.Input.GetId() == Guid.Empty) {
@@ -34,15 +33,12 @@ namespace NTMiner.Core.Kernels.Impl {
                         _dicByKernelOutputId.Add(entity.KernelOutputId, new List<KernelOutputTranslaterData>());
                     }
                     _dicByKernelOutputId[entity.KernelOutputId].Add(entity);
-                    var repository = NTMinerRoot.CreateServerRepository<KernelOutputTranslaterData>();
+                    var repository = NTMinerRoot.CreateServerRepository<KernelOutputTranslaterData>(isUseJson);
                     repository.Add(entity);
 
-                    Global.Happened(new KernelOutputTranslaterAddedEvent(entity));
-                });
-            Global.Access<UpdateKernelOutputTranslaterCommand>(
-                Guid.Parse("9e22fc7d-41da-4291-8dde-d8282f81d188"),
-                "更新内核输出翻译器",
-                LogEnum.Log,
+                    VirtualRoot.Happened(new KernelOutputTranslaterAddedEvent(entity));
+                }).AddToCollection(root.ContextHandlers);
+            VirtualRoot.Window<UpdateKernelOutputTranslaterCommand>("更新内核输出翻译器", LogEnum.DevConsole,
                 action: (message) => {
                     InitOnece();
                     if (message == null || message.Input == null || message.Input.GetId() == Guid.Empty) {
@@ -55,6 +51,9 @@ namespace NTMiner.Core.Kernels.Impl {
                         return;
                     }
                     KernelOutputTranslaterData entity = _dicById[message.Input.GetId()];
+                    if (ReferenceEquals(entity, message.Input)) {
+                        return;
+                    }
                     string regexPattern = entity.RegexPattern;
                     string color = entity.Color;
                     entity.Update(message.Input);
@@ -65,15 +64,12 @@ namespace NTMiner.Core.Kernels.Impl {
                         _colorDic.Remove(entity);
                     }
                     _dicByKernelOutputId[entity.KernelOutputId].Sort(new SortNumberComparer());
-                    var repository = NTMinerRoot.CreateServerRepository<KernelOutputTranslaterData>();
+                    var repository = NTMinerRoot.CreateServerRepository<KernelOutputTranslaterData>(isUseJson);
                     repository.Update(entity);
 
-                    Global.Happened(new KernelOutputTranslaterUpdatedEvent(entity));
-                });
-            Global.Access<RemoveKernelOutputTranslaterCommand>(
-                Guid.Parse("7e76b569-aa52-492a-ae41-f2e0a22ffa9b"),
-                "移除内核输出翻译器",
-                LogEnum.Log,
+                    VirtualRoot.Happened(new KernelOutputTranslaterUpdatedEvent(entity));
+                }).AddToCollection(root.ContextHandlers);
+            VirtualRoot.Window<RemoveKernelOutputTranslaterCommand>("移除内核输出翻译器", LogEnum.DevConsole,
                 action: (message) => {
                     InitOnece();
                     if (message == null || message.EntityId == Guid.Empty) {
@@ -88,15 +84,12 @@ namespace NTMiner.Core.Kernels.Impl {
                     _colorDic.Remove(entity);
                     _regexDic.Remove(entity);
                     _dicByKernelOutputId[entity.KernelOutputId].Sort(new SortNumberComparer());
-                    var repository = NTMinerRoot.CreateServerRepository<KernelOutputTranslaterData>();
+                    var repository = NTMinerRoot.CreateServerRepository<KernelOutputTranslaterData>(isUseJson);
                     repository.Remove(entity.Id);
 
-                    Global.Happened(new KernelOutputTranslaterRemovedEvent(entity));
-                });
-            Global.Access<SysDicItemUpdatedEvent>(
-                Guid.Parse("de662262-bd05-4cae-ba6e-843f18541966"),
-                "LogColor字典项更新后刷新翻译器内存",
-                LogEnum.None,
+                    VirtualRoot.Happened(new KernelOutputTranslaterRemovedEvent(entity));
+                }).AddToCollection(root.ContextHandlers);
+            VirtualRoot.On<SysDicItemUpdatedEvent>("LogColor字典项更新后刷新翻译器内存", LogEnum.DevConsole,
                 action: message => {
                     ISysDic dic;
                     if (!_root.SysDicSet.TryGetSysDic("LogColor", out dic)) {
@@ -110,8 +103,7 @@ namespace NTMiner.Core.Kernels.Impl {
                             _colorDic.Remove(entity);
                         }
                     }
-                });
-            Global.Logger.InfoDebugLine(this.GetType().FullName + "接入总线");
+                }).AddToCollection(root.ContextHandlers);
         }
 
         private bool _isInited = false;
@@ -127,7 +119,7 @@ namespace NTMiner.Core.Kernels.Impl {
         private void Init() {
             lock (_locker) {
                 if (!_isInited) {
-                    var repository = NTMinerRoot.CreateServerRepository<KernelOutputTranslaterData>();
+                    var repository = NTMinerRoot.CreateServerRepository<KernelOutputTranslaterData>(_isUseJson);
                     foreach (var item in repository.GetAll()) {
                         if (!_dicById.ContainsKey(item.GetId())) {
                             _dicById.Add(item.GetId(), item);
@@ -256,7 +248,7 @@ namespace NTMiner.Core.Kernels.Impl {
                     }
                     Match match = regex.Match(input);
                     if (match.Success) {
-                        if (Global.Lang.Code == "zh-CN" || (isPre && consoleTranslater.IsPre)) {
+                        if (VirtualRoot.Lang.Code == "zh-CN" || (isPre && consoleTranslater.IsPre)) {
                             if (!string.IsNullOrEmpty(consoleTranslater.Replacement)) {
                                 input = regex.Replace(input, consoleTranslater.Replacement);
                             }
@@ -268,7 +260,7 @@ namespace NTMiner.Core.Kernels.Impl {
                 }
             }
             catch (Exception e) {
-                Global.Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e.Message, e);
             }
         }
     }

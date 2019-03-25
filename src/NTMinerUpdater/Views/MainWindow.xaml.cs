@@ -1,7 +1,7 @@
 ﻿using MahApps.Metro.Controls;
 using NTMiner.Vms;
+using System;
 using System.Windows;
-using System.Windows.Controls;
 
 namespace NTMiner.Views {
     public partial class MainWindow : MetroWindow {
@@ -13,6 +13,9 @@ namespace NTMiner.Views {
 
         public MainWindow() {
             InitializeComponent();
+            EventHandler ChangeNotiCenterWindowLocation = Wpf.Util.ChangeNotiCenterWindowLocation(this);
+            this.Activated += ChangeNotiCenterWindowLocation;
+            this.LocationChanged += ChangeNotiCenterWindowLocation;
         }
 
         private void CloseButton_Click(object sender, RoutedEventArgs e) {
@@ -26,13 +29,7 @@ namespace NTMiner.Views {
         }
 
         private void DataGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e) {
-            if (!DevMode.IsDevMode) {
-                return;
-            }
-            DataGrid dg = (DataGrid)sender;
-            if (dg.SelectedItem != null) {
-                ((NTMinerFileViewModel)dg.SelectedItem).Edit.Execute(null);
-            }
+            Wpf.Util.DataGrid_MouseDoubleClick<NTMinerFileViewModel>(sender, e);
         }
     }
 }

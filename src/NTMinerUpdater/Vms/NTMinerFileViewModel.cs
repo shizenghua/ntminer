@@ -1,18 +1,20 @@
-﻿using NTMiner.ServiceContracts.DataObjects;
+﻿using NTMiner.MinerServer;
 using NTMiner.Views;
+using NTMiner.Wpf;
 using System;
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 
 namespace NTMiner.Vms {
-    public class NTMinerFileViewModel : ViewModelBase, INTMinerFile {
+    public class NTMinerFileViewModel : ViewModelBase, INTMinerFile, IEditableViewModel {
         private Version _versionData;
         private string _fileName;
         private string _version;
         private string _versionTag;
         private DateTime _createdOn;
         private Guid _id;
+        private NTMinerAppType _appType;
         private DateTime _publishOn;
 
         public ICommand Save { get; private set; }
@@ -24,12 +26,15 @@ namespace NTMiner.Vms {
             _publishOn = DateTime.Now;
             this.Save = new DelegateCommand(() => {
                 if (Login()) {
-                    Server.FileUrlService.AddOrUpdateNTMinerFileAsync(new NTMinerFileData().Update(this), response => {
-                        if (response != null && response.IsSuccess()) {
+                    OfficialServer.FileUrlService.AddOrUpdateNTMinerFileAsync(new NTMinerFileData().Update(this), (response, e) => {
+                        if (response.IsSuccess()) {
                             MainWindowViewModel.Current.Refresh();
-                            Execute.OnUIThread(() => {
+                            UIThread.Execute(() => {
                                 TopWindow.GetTopWindow()?.Close();
                             });
+                        }
+                        else {
+                            Logger.ErrorDebugLine($"AddOrUpdateNTMinerFileAsync失败");
                         }
                     });
                 }
@@ -41,7 +46,7 @@ namespace NTMiner.Vms {
             this.Remove = new DelegateCommand(() => {
                 if (Login()) {
                     DialogWindow.ShowDialog(message: $"确定删除{this.Version}({this.VersionTag})吗？", title: "确认", onYes: () => {
-                        Server.FileUrlService.RemoveNTMinerFileAsync(this.Id, isSuccess => {
+                        OfficialServer.FileUrlService.RemoveNTMinerFileAsync(this.Id, (response, e) => {
                             MainWindowViewModel.Current.SelectedNTMinerFile = MainWindowViewModel.Current.NTMinerFiles.FirstOrDefault();
                             if (this == MainWindowViewModel.Current.ServerLatestVm) {
                                 MainWindowViewModel.Current.ServerLatestVm = MainWindowViewModel.Current.NTMinerFiles
@@ -49,13 +54,13 @@ namespace NTMiner.Vms {
                             }
                             MainWindowViewModel.Current.Refresh();
                         });
-                    }, icon: "Icon_Confirm");
+                    }, icon: IconConst.IconConfirm);
                 }
             });
         }
 
         private bool Login() {
-            if (string.IsNullOrEmpty(Server.LoginName) || string.IsNullOrEmpty(Server.Password)) {
+            if (string.IsNullOrEmpty(SingleUser.LoginName) || string.IsNullOrEmpty(SingleUser.PasswordSha1)) {
                 LoginWindow window = new LoginWindow() {
                     WindowStartupLocation = WindowStartupLocation.CenterOwner,
                     Owner = TopWindow.GetTopWindow()
@@ -68,6 +73,7 @@ namespace NTMiner.Vms {
 
         public NTMinerFileViewModel(INTMinerFile data) : this() {
             _id = data.Id;
+            _appType = data.AppType;
             _version = data.Version;
             _fileName = data.FileName;
             _versionTag = data.VersionTag;
@@ -83,6 +89,14 @@ namespace NTMiner.Vms {
             set {
                 _id = value;
                 OnPropertyChanged(nameof(Id));
+            }
+        }
+
+        public NTMinerAppType AppType {
+            get { return _appType; }
+            set {
+                _appType = value;
+                OnPropertyChanged(nameof(AppType));
             }
         }
 

@@ -10,29 +10,32 @@ namespace NTMiner.Vms {
         private readonly Dictionary<Guid, SysDicItemViewModel> _dicById = new Dictionary<Guid, SysDicItemViewModel>();
 
         public SysDicItemViewModels() {
-            foreach (var item in NTMinerRoot.Current.SysDicItemSet) {
-                _dicById.Add(item.GetId(), new SysDicItemViewModel(item));
-            }
-            Global.Access<SysDicItemAddedEvent>(
-                Guid.Parse("3527e754-9b63-4931-8b14-5b5cada26165"),
-                "添加了系统字典项后调整VM内存",
-                LogEnum.Log,
+            NTMinerRoot.Current.OnContextReInited += () => {
+                _dicById.Clear();
+                Init();
+            };
+            NTMinerRoot.Current.OnReRendContext += () => {
+                AllPropertyChanged();
+            };
+            Init();
+        }
+
+        private void Init() {
+            VirtualRoot.On<SysDicItemAddedEvent>("添加了系统字典项后调整VM内存", LogEnum.DevConsole,
                 action: (message) => {
                     if (!_dicById.ContainsKey(message.Source.GetId())) {
                         _dicById.Add(message.Source.GetId(), new SysDicItemViewModel(message.Source));
                         OnPropertyChanged(nameof(List));
                         OnPropertyChanged(nameof(Count));
+                        OnPropertyChanged(nameof(KernelBrandItems));
                         SysDicViewModel sysDicVm;
                         if (SysDicViewModels.Current.TryGetSysDicVm(message.Source.DicId, out sysDicVm)) {
                             sysDicVm.OnPropertyChanged(nameof(sysDicVm.SysDicItems));
                             sysDicVm.OnPropertyChanged(nameof(sysDicVm.SysDicItemsSelect));
                         }
                     }
-                });
-            Global.Access<SysDicItemUpdatedEvent>(
-                Guid.Parse("9146e461-dc8f-4aba-9254-6b81fe79389e"),
-                "更新了系统字典项后调整VM内存",
-                LogEnum.Log,
+                }).AddToCollection(NTMinerRoot.Current.ContextHandlers);
+            VirtualRoot.On<SysDicItemUpdatedEvent>("更新了系统字典项后调整VM内存", LogEnum.DevConsole,
                 action: (message) => {
                     if (_dicById.ContainsKey(message.Source.GetId())) {
                         SysDicItemViewModel entity = _dicById[message.Source.GetId()];
@@ -46,27 +49,45 @@ namespace NTMiner.Vms {
                             }
                         }
                     }
-                });
-            Global.Access<SysDicItemRemovedEvent>(
-                Guid.Parse("767cf0bd-f645-43f6-984d-0bde96786837"),
-                "删除了系统字典项后调整VM内存",
-                LogEnum.Log,
+                }).AddToCollection(NTMinerRoot.Current.ContextHandlers);
+            VirtualRoot.On<SysDicItemRemovedEvent>("删除了系统字典项后调整VM内存", LogEnum.DevConsole,
                 action: (message) => {
                     _dicById.Remove(message.Source.GetId());
                     OnPropertyChanged(nameof(List));
                     OnPropertyChanged(nameof(Count));
+                    OnPropertyChanged(nameof(KernelBrandItems));
                     SysDicViewModel sysDicVm;
                     if (SysDicViewModels.Current.TryGetSysDicVm(message.Source.DicId, out sysDicVm)) {
                         sysDicVm.OnPropertyChanged(nameof(sysDicVm.SysDicItems));
                         sysDicVm.OnPropertyChanged(nameof(sysDicVm.SysDicItemsSelect));
                     }
-                });
+                }).AddToCollection(NTMinerRoot.Current.ContextHandlers);
+            foreach (var item in NTMinerRoot.Current.SysDicItemSet) {
+                _dicById.Add(item.GetId(), new SysDicItemViewModel(item));
+            }
+        }
+
+        public List<SysDicItemViewModel> KernelBrandItems {
+            get {
+                List<SysDicItemViewModel> list = new List<SysDicItemViewModel> {
+                    SysDicItemViewModel.PleaseSelect
+                };
+                SysDicViewModel sysDic;
+                if (SysDicViewModels.Current.TryGetSysDicVm("KernelBrand", out sysDic)) {
+                    list.AddRange(List.Where(a => a.DicId == sysDic.Id));
+                }
+                return list;
+            }
         }
 
         public int Count {
             get {
                 return _dicById.Count;
             }
+        }
+
+        public bool TryGetValue(Guid id, out SysDicItemViewModel vm) {
+            return _dicById.TryGetValue(id, out vm);
         }
 
         public List<SysDicItemViewModel> List {
