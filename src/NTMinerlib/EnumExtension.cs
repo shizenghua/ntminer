@@ -20,32 +20,32 @@ namespace NTMiner {
 
     public static class EnumExtension {
         public static string GetName<T>(this T value) where T : struct {
-            return EnumDic<T>.Current[value];
+            return EnumDic<T>.Instance[value];
         }
 
         public static string GetDescription<T>(this T value) where T : struct {
-            return EnumDic<T>.Current.GetDescription(value);
+            return EnumDic<T>.Instance.GetDescription(value);
         }
 
         public static bool TryParse<T>(this string name, out T value) where T : struct {
             if (name != null) {
-                return EnumDic<T>.Current.TryGetValue(name, out value);
+                return EnumDic<T>.Instance.TryGetValue(name, out value);
             }
             value = default(T);
             return false;
         }
 
         public static EnumItem<T> GetEnumItem<T>(this T enumValue) where T : struct {
-            return EnumDic<T>.Current.GetEnumItem(enumValue);
+            return EnumDic<T>.Instance.GetEnumItem(enumValue);
         }
 
         public static IEnumerable<EnumItem<T>> GetEnumItems<T>(this T enumValue) where T : struct {
-            return EnumDic<T>.Current.EnumItems;
+            return EnumDic<T>.Instance.EnumItems;
         }
 
         private class EnumDic<T>
             where T : struct {
-            public static readonly EnumDic<T> Current = new EnumDic<T>();
+            public static readonly EnumDic<T> Instance = new EnumDic<T>();
 
             private readonly Dictionary<ValueType, string> _dicByValue = new Dictionary<ValueType, string>();
             private readonly Dictionary<string, T> _dicByString = new Dictionary<string, T>(StringComparer.OrdinalIgnoreCase);
@@ -54,7 +54,7 @@ namespace NTMiner {
 
             private EnumDic() {
                 if (typeof(Enum) != typeof(T).BaseType) {
-                    throw new GeneralException(typeof(T).FullName + " must be enum type");
+                    throw new NTMinerException(typeof(T).FullName + " must be enum type");
                 }
                 Type enumType = typeof(T);
                 var names = Enum.GetNames(enumType);
@@ -93,7 +93,7 @@ namespace NTMiner {
             public string this[ValueType value] {
                 get {
                     if (!_dicByValue.ContainsKey(value)) {
-                        throw new GeneralException("invalid enum value:" + value.ToString());
+                        throw new NTMinerException("invalid enum value:" + value.ToString());
                     }
 
                     return _dicByValue[value];

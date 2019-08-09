@@ -12,7 +12,7 @@ namespace NTMiner.Core.Kernels.Impl {
         public KernelInputSet(INTMinerRoot root, bool isUseJson) {
             _root = root;
             _isUseJson = isUseJson;
-            VirtualRoot.Window<AddKernelInputCommand>("添加内核输入组", LogEnum.DevConsole,
+            _root.ServerContextWindow<AddKernelInputCommand>("添加内核输入组", LogEnum.DevConsole,
                 action: (message) => {
                     InitOnece();
                     if (message == null || message.Input == null || message.Input.GetId() == Guid.Empty) {
@@ -27,15 +27,15 @@ namespace NTMiner.Core.Kernels.Impl {
                     repository.Add(entity);
 
                     VirtualRoot.Happened(new KernelInputAddedEvent(entity));
-                }).AddToCollection(root.ContextHandlers);
-            VirtualRoot.Window<UpdateKernelInputCommand>("更新内核输入组", LogEnum.DevConsole,
+                });
+            _root.ServerContextWindow<UpdateKernelInputCommand>("更新内核输入组", LogEnum.DevConsole,
                 action: (message) => {
                     InitOnece();
                     if (message == null || message.Input == null || message.Input.GetId() == Guid.Empty) {
                         throw new ArgumentNullException();
                     }
                     if (string.IsNullOrEmpty(message.Input.Name)) {
-                        throw new ValidationException("KernelInput name can't be null or empty");
+                        throw new ValidationException($"{nameof(message.Input.Name)} can't be null or empty");
                     }
                     if (!_dicById.ContainsKey(message.Input.GetId())) {
                         return;
@@ -49,8 +49,8 @@ namespace NTMiner.Core.Kernels.Impl {
                     repository.Update(entity);
 
                     VirtualRoot.Happened(new KernelInputUpdatedEvent(entity));
-                }).AddToCollection(root.ContextHandlers);
-            VirtualRoot.Window<RemoveKernelInputCommand>("移除内核输入组", LogEnum.DevConsole,
+                });
+            _root.ServerContextWindow<RemoveKernelInputCommand>("移除内核输入组", LogEnum.DevConsole,
                 action: (message) => {
                     InitOnece();
                     if (message == null || message.EntityId == Guid.Empty) {
@@ -65,7 +65,7 @@ namespace NTMiner.Core.Kernels.Impl {
                     repository.Remove(message.EntityId);
 
                     VirtualRoot.Happened(new KernelInputRemovedEvent(entity));
-                }).AddToCollection(root.ContextHandlers);
+                });
         }
 
         private bool _isInited = false;

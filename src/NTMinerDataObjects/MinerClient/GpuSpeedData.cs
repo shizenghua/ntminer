@@ -7,11 +7,16 @@
 
         public string Name { get; set; }
 
+        /// <summary>
+        /// 单位byte
+        /// </summary>
+        public ulong TotalMemory { get; set; }
+
         public double MainCoinSpeed { get; set; }
 
         public double DualCoinSpeed { get; set; }
 
-        public uint Temperature { get; set; }
+        public int Temperature { get; set; }
 
         public uint FanSpeed { get; set; }
 
@@ -19,6 +24,7 @@
         public int CoreClockDelta { get; set; }
         public int MemoryClockDelta { get; set; }
         public int Cool { get; set; }
-        public double Power { get; set; }
+        public double PowerCapacity { get; set; }
+        public int TempLimit { get; set; }
     }
 }

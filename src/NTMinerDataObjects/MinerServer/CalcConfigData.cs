@@ -10,6 +10,10 @@ namespace NTMiner.MinerServer {
             this.CoinCode = data.CoinCode;
             this.Speed = data.Speed;
             this.SpeedUnit = data.SpeedUnit;
+            this.NetSpeed = data.NetSpeed;
+            this.BaseNetSpeed = data.BaseNetSpeed;
+            this.DayWave = data.DayWave;
+            this.NetSpeedUnit = data.NetSpeedUnit;
             this.IncomePerDay = data.IncomePerDay;
             this.IncomeUsdPerDay = data.IncomeUsdPerDay;
             this.IncomeCnyPerDay = data.IncomeCnyPerDay;
@@ -20,6 +24,10 @@ namespace NTMiner.MinerServer {
         public void Update(ICalcConfig data) {
             this.Speed = data.Speed;
             this.SpeedUnit = data.SpeedUnit;
+            this.NetSpeed = data.NetSpeed;
+            this.BaseNetSpeed = data.BaseNetSpeed;
+            this.DayWave = data.DayWave;
+            this.NetSpeedUnit = data.NetSpeedUnit;
             this.IncomePerDay = data.IncomePerDay;
             this.IncomeUsdPerDay = data.IncomeUsdPerDay;
             this.IncomeCnyPerDay = data.IncomeCnyPerDay;
@@ -34,27 +42,25 @@ namespace NTMiner.MinerServer {
 
         public string SpeedUnit { get; set; }
 
+        public double NetSpeed { get; set; }
+
+        public string NetSpeedUnit { get; set; }
+
+        public double DayWave { get; set; }
+
         public double IncomePerDay { get; set; }
 
         public double IncomeUsdPerDay { get; set; }
 
         public double IncomeCnyPerDay { get; set; }
+        public double BaseNetSpeed { get; set; }
 
         public DateTime CreatedOn { get; set; }
 
         public DateTime ModifiedOn { get; set; }
 
         public StringBuilder GetSignData() {
-            StringBuilder sb = new StringBuilder();
-            sb.Append(nameof(CoinCode)).Append(CoinCode)
-                .Append(nameof(Speed)).Append(Speed)
-                .Append(nameof(SpeedUnit)).Append(SpeedUnit)
-                .Append(nameof(IncomePerDay)).Append(IncomePerDay)
-                .Append(nameof(IncomeUsdPerDay)).Append(IncomeUsdPerDay)
-                .Append(nameof(IncomeCnyPerDay)).Append(IncomeCnyPerDay)
-                .Append(nameof(CreatedOn)).Append(CreatedOn.ToUlong())
-                .Append(nameof(ModifiedOn)).Append(ModifiedOn.ToUlong());
-            return sb;
+            return this.BuildSign();
         }
     }
 }

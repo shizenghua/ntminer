@@ -3,95 +3,130 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Net;
+using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using System.Timers;
 
 namespace NTMiner {
     class Program {
         static void Main(string[] args) {
+            VirtualRoot.StartTimer();
             try {
+                // 将服务器地址设为localhost从而使用内网ip访问免于验证用户名密码
+                AssemblyInfo.OfficialServerHost = "localhost";
                 NTMinerRegistry.SetAutoBoot("NTMiner.CalcConfigUpdater", true);
-                const int minutes = 60 * 1000;
-                Timer t = new Timer(10 * minutes) {
-                    Enabled = true
-                };
-                t.Elapsed += (object sender, ElapsedEventArgs e) => {
-                    UpdateAsync();
-                };
-                t.Start();
+                VirtualRoot.On<Per10MinuteEvent>("每10分钟更新收益计算器", LogEnum.DevConsole,
+                    action: message => {
+                        UpdateAsync();
+                    });
                 UpdateAsync();
-                Console.WriteLine("输入exit并回车可以停止服务！");
+                Write.UserInfo("输入exit并回车可以停止服务！");
 
                 while (Console.ReadLine() != "exit") {
                 }
 
-                Console.WriteLine("服务停止成功: {0}.", DateTime.Now);
+                Write.UserOk($"服务停止成功: {DateTime.Now}.");
             }
             catch (Exception e) {
-                PrintError(e);
+                Logger.ErrorDebugLine(e);
             }
 
             System.Threading.Thread.Sleep(1000);
         }
 
+
         private static void UpdateAsync() {
             Task.Factory.StartNew(() => {
                 try {
-                    byte[] htmlData = GetHtmlAsync("https://www.f2pool.com/").Result;
+                    var vdsUUDataTask = GetHtmlAsync("https://uupool.cn/api/getAllInfo.php");
+                    var vdsZtDataTask = GetHtmlAsync("https://www.zt.com/api/v1/symbol");
+                    var htmlDataTask = GetHtmlAsync("https://www.f2pool.com/");
+                    byte[] htmlData = null;
+                    byte[] vdsUUData = null;
+                    byte[] vdsZtData = null;
+                    try {
+                        Task.WaitAll(new Task[] { vdsUUDataTask, vdsZtDataTask, htmlDataTask }, 30 * 1000);
+                        htmlData = htmlDataTask.Result;
+                        vdsUUData = vdsUUDataTask.Result;
+                        vdsZtData = vdsZtDataTask.Result;
+                    }
+                    catch {
+                    }
                     if (htmlData != null && htmlData.Length != 0) {
-                        Console.WriteLine($"{DateTime.Now} - 鱼池首页html获取成功");
+                        Write.UserOk($"{DateTime.Now} - 鱼池首页html获取成功");
                         string html = Encoding.UTF8.GetString(htmlData);
+                        string vdsUUHtml = string.Empty;
+                        string vdsZtHtml = string.Empty;
+                        if (vdsUUData != null && vdsUUData.Length != 0) {
+                            vdsUUHtml = Encoding.UTF8.GetString(vdsUUData);
+                        }
+                        if (vdsZtData != null && vdsZtData.Length != 0) {
+                            vdsZtHtml = Encoding.UTF8.GetString(vdsZtData);
+                        }
                         double usdCny = PickUsdCny(html);
-                        Console.WriteLine($"usdCny={usdCny}");
+                        Write.UserInfo($"usdCny={usdCny}");
                         List<IncomeItem> incomeItems = PickIncomeItems(html);
-                        Console.WriteLine($"鱼池首页有{incomeItems.Count}个币种");
+                        IncomeItem vdsIncomeItem = PickVDSIncomeItem(vdsUUHtml, vdsZtHtml, usdCny);
+                        if (vdsIncomeItem != null && incomeItems.All(a => a.CoinCode != "VDS")) {
+                            incomeItems.Add(vdsIncomeItem);
+                        }
+                        Write.UserInfo($"鱼池首页有{incomeItems.Count}个币种");
                         FillCny(incomeItems, usdCny);
                         NeatenSpeedUnit(incomeItems);
                         if (incomeItems != null && incomeItems.Count != 0) {
                             Login();
-                            DataResponse<List<CalcConfigData>> response = OfficialServer.GetCalcConfigs();
-                            Console.WriteLine($"NTMiner有{response.Data.Count}个币种");
-                            HashSet<string> coinCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                            foreach (CalcConfigData calcConfigData in response.Data) {
-                                IncomeItem incomeItem = incomeItems.FirstOrDefault(a => string.Equals(a.CoinCode, calcConfigData.CoinCode, StringComparison.OrdinalIgnoreCase));
-                                if (incomeItem != null) {
-                                    coinCodes.Add(calcConfigData.CoinCode);
-                                    calcConfigData.Speed = incomeItem.Speed;
-                                    calcConfigData.SpeedUnit = incomeItem.SpeedUnit;
-                                    calcConfigData.IncomePerDay = incomeItem.IncomeCoin;
-                                    calcConfigData.IncomeUsdPerDay = incomeItem.IncomeUsd;
-                                    calcConfigData.IncomeCnyPerDay = incomeItem.IncomeCny;
-                                    calcConfigData.ModifiedOn = DateTime.Now;
+                            OfficialServer.CalcConfigService.GetCalcConfigsAsync(data => {
+                                Write.UserInfo($"NTMiner有{data.Count}个币种");
+                                HashSet<string> coinCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                                foreach (CalcConfigData calcConfigData in data) {
+                                    IncomeItem incomeItem = incomeItems.FirstOrDefault(a => string.Equals(a.CoinCode, calcConfigData.CoinCode, StringComparison.OrdinalIgnoreCase));
+                                    if (incomeItem != null) {
+                                        coinCodes.Add(calcConfigData.CoinCode);
+                                        calcConfigData.Speed = incomeItem.Speed;
+                                        calcConfigData.SpeedUnit = incomeItem.SpeedUnit;
+                                        calcConfigData.NetSpeed = incomeItem.NetSpeed;
+                                        calcConfigData.NetSpeedUnit = incomeItem.NetSpeedUnit;
+                                        calcConfigData.IncomePerDay = incomeItem.IncomeCoin;
+                                        calcConfigData.IncomeUsdPerDay = incomeItem.IncomeUsd;
+                                        calcConfigData.IncomeCnyPerDay = incomeItem.IncomeCny;
+                                        calcConfigData.ModifiedOn = DateTime.Now;
+                                        if (calcConfigData.ModifiedOn.AddMinutes(15) > calcConfigData.ModifiedOn.Date.AddDays(1)) {
+                                            calcConfigData.BaseNetSpeed = calcConfigData.NetSpeed;
+                                        }
+                                        else if(calcConfigData.BaseNetSpeed != 0) {
+                                            calcConfigData.DayWave = (calcConfigData.NetSpeed - calcConfigData.BaseNetSpeed) / calcConfigData.BaseNetSpeed;
+                                        }
+                                    }
                                 }
-                            }
-                            OfficialServer.SaveCalcConfigsAsync(response.Data, null);
-                            foreach (IncomeItem incomeItem in incomeItems) {
-                                if (coinCodes.Contains(incomeItem.CoinCode)) {
-                                    continue;
+                                OfficialServer.CalcConfigService.SaveCalcConfigsAsync(data, callback: (res, e) => {
+                                    if (!res.IsSuccess()) {
+                                        Write.UserFail(res.ReadMessage(e));
+                                    }
+                                });
+                                foreach (IncomeItem incomeItem in incomeItems) {
+                                    if (coinCodes.Contains(incomeItem.CoinCode)) {
+                                        continue;
+                                    }
+                                    Write.UserInfo(incomeItem.ToString());
                                 }
-                                Console.WriteLine(incomeItem.ToString());
-                            }
 
-                            Console.ForegroundColor = ConsoleColor.Green;
-                            foreach (var incomeItem in incomeItems) {
-                                if (!coinCodes.Contains(incomeItem.CoinCode)) {
-                                    continue;
+                                foreach (var incomeItem in incomeItems) {
+                                    if (!coinCodes.Contains(incomeItem.CoinCode)) {
+                                        continue;
+                                    }
+                                    Write.UserOk(incomeItem.ToString());
                                 }
-                                Console.WriteLine(incomeItem.ToString());
-                            }
-                            Console.ResetColor();
 
-                            Console.WriteLine($"更新了{coinCodes.Count}个币种：{string.Join(",", coinCodes)}");
-                            int unUpdatedCount = response.Data.Count - coinCodes.Count;
-                            Console.WriteLine($"{unUpdatedCount}个币种未更新{(unUpdatedCount == 0 ? string.Empty: "：" + string.Join(",", response.Data.Select(a => a.CoinCode).Except(coinCodes)))}");
+                                Write.UserOk($"更新了{coinCodes.Count}个币种：{string.Join(",", coinCodes)}");
+                                int unUpdatedCount = data.Count - coinCodes.Count;
+                                Write.UserWarn($"{unUpdatedCount}个币种未更新{(unUpdatedCount == 0 ? string.Empty : "：" + string.Join(",", data.Select(a => a.CoinCode).Except(coinCodes)))}");
+                            });
                         }
                     }
                 }
                 catch (Exception e) {
-                    PrintError(e);
+                    Logger.ErrorDebugLine(e);
                 }
             });
         }
@@ -119,7 +154,47 @@ namespace NTMiner {
                     incomeItem.SpeedUnit = incomeItem.SpeedUnit.ToLower();
                     incomeItem.SpeedUnit = incomeItem.SpeedUnit.Replace("sol/s", "h/s");
                 }
+                if (!string.IsNullOrEmpty(incomeItem.NetSpeedUnit)) {
+                    incomeItem.NetSpeedUnit = incomeItem.NetSpeedUnit.ToLower();
+                    incomeItem.NetSpeedUnit = incomeItem.NetSpeedUnit.Replace("sol/s", "h/s");
+                }
             }
+        }
+
+        private static IncomeItem PickVDSIncomeItem(string vdsUUHtml, string vdsZtHtml, double usdCny) {
+            string pattern = "\"symbol\":\"vds\",.+,\"hr\":\"(?<netSpeed>[\\d\\.]+)\\s(?<netSpeedUnit>\\w+)\",\"est\":\"(?<incomeCoin>[\\d\\.]+) VDS\\\\/(?<speedUnit>\\w+)\",";
+            IncomeItem result = new IncomeItem {
+                CoinCode = "VDS",
+                DataCode = "VDS",
+                Speed = 1,
+            };
+            var match = Regex.Match(vdsUUHtml, pattern);
+            if (match.Success) {
+                string incomeCoinText = match.Groups["incomeCoin"].Value;
+                result.SpeedUnit = match.Groups["speedUnit"].Value + "h/s";
+                string netSpeedText = match.Groups["netSpeed"].Value;
+                result.NetSpeedUnit = match.Groups["netSpeedUnit"].Value + "h/s";
+                double incomeCoin;
+                if (double.TryParse(incomeCoinText, out incomeCoin)) {
+                    result.IncomeCoin = incomeCoin;
+                }
+                double netSpeed;
+                if (double.TryParse(netSpeedText, out netSpeed)) {
+                    result.NetSpeed = netSpeed;
+                }
+            }
+            pattern = "\"VDS\",.+?,\"last\":\"(?<incomeCny>[\\d\\.]+)\"";
+            match = Regex.Match(vdsZtHtml, pattern);
+            if (match.Success) {
+                string incomeCnyText = match.Groups["incomeCny"].Value;
+                double incomeCny;
+                if (double.TryParse(incomeCnyText, out incomeCny)) {
+                    result.IncomeCny = incomeCny * result.IncomeCoin;
+                    result.IncomeUsd = result.IncomeCny / usdCny;
+                }
+            }
+
+            return result;
         }
 
         private static List<IncomeItem> PickIncomeItems(string html) {
@@ -137,7 +212,7 @@ namespace NTMiner {
                     return results;
                 }
                 List<int> indexList = new List<int>();
-                const string splitText = "<div class=\"row-collapse-container\" data-code=";
+                const string splitText = "<tr class=\"row-common";
                 int index = html.IndexOf(splitText);
                 while (index != -1) {
                     indexList.Add(index);
@@ -150,7 +225,8 @@ namespace NTMiner {
                         incomeItem = PickIncomeItem(regex, html.Substring(indexList[i], indexList[i + 1] - indexList[i]));
                     }
                     else {
-                        incomeItem = PickIncomeItem(regex, html.Substring(indexList[i], 2000));
+                        string content = html.Substring(indexList[i]);
+                        incomeItem = PickIncomeItem(regex, content.Substring(0, content.IndexOf("<span class=\"info-title\">币价</span>")));
                     }
                     if (incomeItem != null) {
                         results.Add(incomeItem);
@@ -159,7 +235,7 @@ namespace NTMiner {
                 return results;
             }
             catch (Exception e) {
-                PrintError(e);
+                Logger.ErrorDebugLine(e);
                 return new List<IncomeItem>();
             }
         }
@@ -170,22 +246,37 @@ namespace NTMiner {
                 IncomeItem incomeItem = new IncomeItem() {
                     DataCode = match.Groups["dataCode"].Value,
                     CoinCode = match.Groups["coinCode"].Value,
-                    SpeedUnit = match.Groups["speedUnit"].Value
+                    SpeedUnit = match.Groups["speedUnit"].Value,
+                    NetSpeedUnit = match.Groups["netSpeedUnit"].Value,
                 };
                 if (incomeItem.DataCode == "grin-29") {
                     incomeItem.CoinCode = "grin";
                     incomeItem.SpeedUnit = "h/s";
+                    if (incomeItem.NetSpeedUnit != null) {
+                        incomeItem.NetSpeedUnit = incomeItem.NetSpeedUnit.Replace("g/s", "h/s");
+                    }
                 }
                 else if (incomeItem.DataCode == "grin-31") {
-                    incomeItem.CoinCode = "grin2";
+                    incomeItem.CoinCode = "grin31";
                     incomeItem.SpeedUnit = "h/s";
+                    if (incomeItem.NetSpeedUnit != null) {
+                        incomeItem.NetSpeedUnit = incomeItem.NetSpeedUnit.Replace("g/s", "h/s");
+                    }
                 }
                 double.TryParse(match.Groups["speed"].Value, out double speed);
                 incomeItem.Speed = speed;
+                double.TryParse(match.Groups["netSpeed"].Value, out double netSpeed);
+                incomeItem.NetSpeed = netSpeed;
                 double.TryParse(match.Groups["incomeCoin"].Value, out double incomeCoin);
                 incomeItem.IncomeCoin = incomeCoin;
                 double.TryParse(match.Groups["incomeUsd"].Value, out double incomeUsd);
                 incomeItem.IncomeUsd = incomeUsd;
+                if (incomeItem.DataCode == "ae") {
+                    incomeItem.SpeedUnit = "h/s";
+                    if (incomeItem.NetSpeedUnit != null) {
+                        incomeItem.NetSpeedUnit = incomeItem.NetSpeedUnit.Replace("g/s", "h/s");
+                    }
+                }
                 return incomeItem;
             }
             return null;
@@ -202,27 +293,22 @@ namespace NTMiner {
                 return result;
             }
             catch (Exception e) {
-                PrintError(e);
+                Logger.ErrorDebugLine(e);
                 return 0;
             }
         }
 
         private static async Task<byte[]> GetHtmlAsync(string url) {
             try {
-                using (WebClient client = new WebClient()) {
-                    return await client.DownloadDataTaskAsync(new Uri(url));
+                using (HttpClient client = new HttpClient()) {
+                    client.Timeout = TimeSpan.FromSeconds(20);
+                    return await client.GetByteArrayAsync(url);
                 }
             }
             catch (Exception e) {
-                PrintError(e);
+                Logger.ErrorDebugLine(e);
                 return new byte[0];
             }
-        }
-
-        private static void PrintError(Exception e) {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine(e.Message, e.StackTrace);
-            Console.ResetColor();
         }
     }
 }

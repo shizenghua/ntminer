@@ -2,21 +2,20 @@
 
 namespace NTMiner.Serialization {
     public class ObjectJsonSerializer : IObjectSerializer {
+        private static readonly JsonSerializerSettings jsonSerializerSettings = new JsonSerializerSettings() {
+            MissingMemberHandling = MissingMemberHandling.Ignore,// 默认值也是Ignore
+            NullValueHandling = NullValueHandling.Ignore
+        };
+
         public ObjectJsonSerializer() {
         }
 
         public virtual string Serialize<TObject>(TObject obj) {
-#if DEBUG
-            return JsonConvert.SerializeObject(obj, new JsonSerializerSettings() {
-                Formatting = Formatting.Indented
-            });
-#else
-            return JsonConvert.SerializeObject(obj);
-#endif
+            return JsonConvert.SerializeObject(obj, jsonSerializerSettings);
         }
 
         public virtual TObject Deserialize<TObject>(string json) {
-            return JsonConvert.DeserializeObject<TObject>(json);
+            return JsonConvert.DeserializeObject<TObject>(json, jsonSerializerSettings);
         }
     }
 }

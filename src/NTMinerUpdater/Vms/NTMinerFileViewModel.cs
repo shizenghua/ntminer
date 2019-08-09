@@ -16,6 +16,8 @@ namespace NTMiner.Vms {
         private Guid _id;
         private NTMinerAppType _appType;
         private DateTime _publishOn;
+        private string _title;
+        private string _description;
 
         public ICommand Save { get; private set; }
         public ICommand Edit { get; private set; }
@@ -28,7 +30,7 @@ namespace NTMiner.Vms {
                 if (Login()) {
                     OfficialServer.FileUrlService.AddOrUpdateNTMinerFileAsync(new NTMinerFileData().Update(this), (response, e) => {
                         if (response.IsSuccess()) {
-                            MainWindowViewModel.Current.Refresh();
+                            MainWindowViewModel.Instance.Refresh();
                             UIThread.Execute(() => {
                                 TopWindow.GetTopWindow()?.Close();
                             });
@@ -40,19 +42,19 @@ namespace NTMiner.Vms {
                 }
             });
             this.Edit = new DelegateCommand(() => {
-                NTMinerFileEdit window = new NTMinerFileEdit("编辑", "Icon_Edit", new NTMinerFileViewModel(this));
+                NTMinerFileEdit window = new NTMinerFileEdit("Icon_Edit", new NTMinerFileViewModel(this));
                 window.ShowDialogEx();
             });
             this.Remove = new DelegateCommand(() => {
                 if (Login()) {
-                    DialogWindow.ShowDialog(message: $"确定删除{this.Version}({this.VersionTag})吗？", title: "确认", onYes: () => {
+                    this.ShowDialog(message: $"确定删除{this.Version}({this.VersionTag})吗？", title: "确认", onYes: () => {
                         OfficialServer.FileUrlService.RemoveNTMinerFileAsync(this.Id, (response, e) => {
-                            MainWindowViewModel.Current.SelectedNTMinerFile = MainWindowViewModel.Current.NTMinerFiles.FirstOrDefault();
-                            if (this == MainWindowViewModel.Current.ServerLatestVm) {
-                                MainWindowViewModel.Current.ServerLatestVm = MainWindowViewModel.Current.NTMinerFiles
-                                    .FirstOrDefault(a => a != this && a.VersionData > MainWindowViewModel.Current.LocalNTMinerVersion);
+                            MainWindowViewModel.Instance.SelectedNTMinerFile = MainWindowViewModel.Instance.NTMinerFiles.FirstOrDefault();
+                            if (this == MainWindowViewModel.Instance.ServerLatestVm) {
+                                MainWindowViewModel.Instance.ServerLatestVm = MainWindowViewModel.Instance.NTMinerFiles
+                                    .FirstOrDefault(a => a != this && a.VersionData > MainWindowViewModel.Instance.LocalNTMinerVersion);
                             }
-                            MainWindowViewModel.Current.Refresh();
+                            MainWindowViewModel.Instance.Refresh();
                         });
                     }, icon: IconConst.IconConfirm);
                 }
@@ -79,6 +81,8 @@ namespace NTMiner.Vms {
             _versionTag = data.VersionTag;
             _createdOn = data.CreatedOn;
             _publishOn = data.PublishOn;
+            _title = data.Title;
+            _description = data.Description;
             if (!System.Version.TryParse(_version, out _versionData)) {
                 _versionData = new Version(1, 0);
             }
@@ -105,7 +109,7 @@ namespace NTMiner.Vms {
             set {
                 _fileName = value;
                 OnPropertyChanged(nameof(FileName));
-                if (MainWindowViewModel.Current.NTMinerFiles.Any(a => string.Equals(a.FileName, value, StringComparison.OrdinalIgnoreCase) && a.Id != this.Id)) {
+                if (MainWindowViewModel.Instance.NTMinerFiles.Any(a => string.Equals(a.FileName, value, StringComparison.OrdinalIgnoreCase) && a.Id != this.Id)) {
                     throw new ValidationException("重复的文件名");
                 }
             }
@@ -120,9 +124,25 @@ namespace NTMiner.Vms {
                     _versionData = new Version(1, 0);
                 }
                 OnPropertyChanged(nameof(VersionData));
-                if (MainWindowViewModel.Current.NTMinerFiles.Any(a => a.Version == value && a.Id != this.Id)) {
+                if (MainWindowViewModel.Instance.NTMinerFiles.Any(a => a.Version == value && a.Id != this.Id)) {
                     throw new ValidationException("重复的版本号");
                 }
+            }
+        }
+
+        public string Title {
+            get => _title;
+            set {
+                _title = value;
+                OnPropertyChanged(nameof(Title));
+            }
+        }
+
+        public string Description {
+            get { return _description; }
+            set {
+                _description = value;
+                OnPropertyChanged(nameof(Description));
             }
         }
 
@@ -137,7 +157,7 @@ namespace NTMiner.Vms {
             set {
                 _versionTag = value;
                 OnPropertyChanged(nameof(VersionTag));
-                if (MainWindowViewModel.Current.NTMinerFiles.Any(a => a.Version == value && a.Id != this.Id)) {
+                if (MainWindowViewModel.Instance.NTMinerFiles.Any(a => a.Version == value && a.Id != this.Id)) {
                     throw new ValidationException("重复的别名");
                 }
             }
@@ -153,7 +173,7 @@ namespace NTMiner.Vms {
 
         public string PublishOnText {
             get {
-                return this.PublishOn.ToString("yyyy-MM-dd HH:mm:ss");
+                return this.PublishOn.ToString("yyyy-MM-dd");
             }
         }
 

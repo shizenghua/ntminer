@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace NTMiner.Core.MinerServer.Impl {
     public class OverClockDataSet : IOverClockDataSet {
@@ -12,7 +13,6 @@ namespace NTMiner.Core.MinerServer.Impl {
             _root = root;
             VirtualRoot.Window<AddOverClockDataCommand>("添加超频建议", LogEnum.DevConsole,
                 action: (message) => {
-                    InitOnece();
                     if (message == null || message.Input == null || message.Input.GetId() == Guid.Empty) {
                         throw new ArgumentNullException();
                     }
@@ -28,14 +28,13 @@ namespace NTMiner.Core.MinerServer.Impl {
                             _dicById.Add(entity.Id, entity);
                             VirtualRoot.Happened(new OverClockDataAddedEvent(entity));
                         }
-                        else if(response != null) {
-                            Write.UserLine(response.Description, ConsoleColor.Red);
+                        else {
+                            Write.UserFail(response.ReadMessage(e));
                         }
                     });
                 });
             VirtualRoot.Window<UpdateOverClockDataCommand>("更新超频建议", LogEnum.DevConsole,
                 action: (message) => {
-                    InitOnece();
                     if (message == null || message.Input == null || message.Input.GetId() == Guid.Empty) {
                         throw new ArgumentNullException();
                     }
@@ -52,16 +51,13 @@ namespace NTMiner.Core.MinerServer.Impl {
                         if (!response.IsSuccess()) {
                             entity.Update(oldValue);
                             VirtualRoot.Happened(new OverClockDataUpdatedEvent(entity));
-                            if (response != null) {
-                                Write.UserLine(response.Description, ConsoleColor.Red);
-                            }
+                            Write.UserFail(response.ReadMessage(e));
                         }
                     });
                     VirtualRoot.Happened(new OverClockDataUpdatedEvent(entity));
                 });
             VirtualRoot.Window<RemoveOverClockDataCommand>("移除超频建议", LogEnum.DevConsole,
                 action: (message) => {
-                    InitOnece();
                     if (message == null || message.EntityId == Guid.Empty) {
                         throw new ArgumentNullException();
                     }
@@ -74,55 +70,52 @@ namespace NTMiner.Core.MinerServer.Impl {
                             _dicById.Remove(entity.Id);
                             VirtualRoot.Happened(new OverClockDataRemovedEvent(entity));
                         }
-                        else if (response != null) {
-                            Write.UserLine(response.Description, ConsoleColor.Red);
+                        else {
+                            Write.UserFail(response.ReadMessage(e));
                         }
                     });
                 });
         }
 
         private bool _isInited = false;
-        private object _locker = new object();
-
-        private void InitOnece() {
+        private void Init() {
             if (_isInited) {
                 return;
             }
-            Init();
-        }
-
-        private void Init() {
-            if (!_isInited) {
-                lock (_locker) {
-                    if (!_isInited) {
-                        Guid messageId = Guid.NewGuid();
-                        var result = OfficialServer.OverClockDataService.GetOverClockDatas(messageId);
-                        foreach (var item in result) {
-                            if (!_dicById.ContainsKey(item.GetId())) {
-                                _dicById.Add(item.GetId(), item);
-                            }
+            _isInited = true;
+            OfficialServer.OverClockDataService.GetOverClockDatasAsync((response, e) => {
+                if (response.IsSuccess()) {
+                    IEnumerable<OverClockData> query;
+                    if (_root.GpuSet.GpuType == GpuType.Empty) {
+                        query = response.Data;
+                    }
+                    else {
+                        query = response.Data.Where(a => a.GpuType == _root.GpuSet.GpuType);
+                    }
+                    foreach (var item in query) {
+                        if (!_dicById.ContainsKey(item.GetId())) {
+                            _dicById.Add(item.GetId(), item);
                         }
-                        _isInited = true;
                     }
                 }
-            }
+                VirtualRoot.Happened(new OverClockDataSetInitedEvent());
+            });
         }
 
-        public bool TryGetOverClockData(Guid id, out IOverClockData group) {
-            InitOnece();
-            OverClockData g;
-            var r = _dicById.TryGetValue(id, out g);
-            group = g;
+        public bool TryGetOverClockData(Guid id, out IOverClockData data) {
+            Init();
+            var r = _dicById.TryGetValue(id, out OverClockData temp);
+            data = temp;
             return r;
         }
 
         public IEnumerator<IOverClockData> GetEnumerator() {
-            InitOnece();
+            Init();
             return _dicById.Values.GetEnumerator();
         }
 
         IEnumerator IEnumerable.GetEnumerator() {
-            InitOnece();
+            Init();
             return _dicById.Values.GetEnumerator();
         }
     }

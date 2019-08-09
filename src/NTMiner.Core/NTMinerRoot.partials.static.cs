@@ -1,13 +1,9 @@
 ﻿using Microsoft.Win32;
-using NTMiner.Core;
 using NTMiner.Core.Impl;
-using NTMiner.Core.Kernels;
 using NTMiner.JsonDb;
 using NTMiner.MinerServer;
-using NTMiner.Profile;
 using NTMiner.Repositories;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -15,40 +11,72 @@ using System.Text;
 
 namespace NTMiner {
     public partial class NTMinerRoot {
-        public static IKernelDownloader KernelDownloader;
-        public static Action RefreshArgsAssembly = () => { };
-        public static Guid KernelBrandId;
-        public static byte[] KernelBrandRaw = new byte[0];
+        public const int SpeedHistoryLengthByMinute = 10;
+        public const int GpuAllId = -1;
+        public static readonly bool IsAutoStart = (NTMinerRegistry.GetIsAutoStart() || CommandLineArgs.IsAutoStart);
+        private static readonly NTMinerRoot S_Instance = new NTMinerRoot();
+        public static readonly INTMinerRoot Instance = S_Instance;
+        public static readonly Version CurrentVersion;
+        public static readonly string CurrentVersionTag;
 
-        public static Func<System.Windows.Forms.Keys, bool> RegHotKey;
-        public static string AppName;
+        public static string ServerVersion;
+        public static Action RefreshArgsAssembly { get; private set; } = () => { };
+        public static void SetRefreshArgsAssembly(Action action) {
+            RefreshArgsAssembly = action;
+        }
+        public static bool IsUiVisible;
+        public static DateTime MainWindowRendedOn = DateTime.MinValue;
+
         public static bool IsUseDevConsole = false;
         // ReSharper disable once InconsistentNaming
         public static int OSVirtualMemoryMb;
         public static string UserKernelCommandLine;
 
-        public static readonly int GpuAllId = -1;
+        public static bool IsAutoStartCanceled = false;
+
+        public static bool IsKernelBrand {
+            get {
+                return KernelBrandId != Guid.Empty;
+            }
+        }
+
+        private static Guid? kernelBrandId = null;
+        public static Guid KernelBrandId {
+            get {
+                if (!kernelBrandId.HasValue) {
+                    kernelBrandId = VirtualRoot.GetBrandId(VirtualRoot.AppFileFullName, Consts.KernelBrandId);
+                }
+                return kernelBrandId.Value;
+            }
+        }
+
+        public static bool IsPoolBrand {
+            get {
+                return PoolBrandId != Guid.Empty;
+            }
+        }
+
+        private static Guid? poolBrandId = null;
+        public static Guid PoolBrandId {
+            get {
+                if (!poolBrandId.HasValue) {
+                    poolBrandId = VirtualRoot.GetBrandId(VirtualRoot.AppFileFullName, Consts.PoolBrandId);
+                }
+                return poolBrandId.Value;
+            }
+        }
+
+        public static bool IsBrandSpecified {
+            get {
+                return KernelBrandId != Guid.Empty || PoolBrandId != Guid.Empty;
+            }
+        }
 
         static NTMinerRoot() {
             Assembly mainAssembly = Assembly.GetEntryAssembly();
             CurrentVersion = mainAssembly.GetName().Version;
+            ServerVersion = CurrentVersion.ToString();
             CurrentVersionTag = ((AssemblyDescriptionAttribute)mainAssembly.GetCustomAttributes(typeof(AssemblyDescriptionAttribute), inherit: false).First()).Description;
-        }
-
-        private static readonly NTMinerRoot SCurrent = new NTMinerRoot();
-        public static readonly INTMinerRoot Current = SCurrent;
-        public static readonly Version CurrentVersion;
-        public static readonly string CurrentVersionTag;
-        private static string _sJsonFileVersion;
-        public static string JsonFileVersion {
-            get { return _sJsonFileVersion; }
-            set {
-                if (_sJsonFileVersion != value) {
-                    string oldVersion = _sJsonFileVersion;
-                    _sJsonFileVersion = value;
-                    VirtualRoot.Happened(new ServerJsonVersionChangedEvent(oldVersion, value));
-                }
-            }
         }
 
         private static LocalJsonDb _localJson;
@@ -78,14 +106,26 @@ namespace NTMiner {
                         if (!string.IsNullOrEmpty(localJson)) {
                             try {
                                 LocalJsonDb data = VirtualRoot.JsonSerializer.Deserialize<LocalJsonDb>(localJson);
-                                _localJson = data;
+                                _localJson = data ?? new LocalJsonDb();
                             }
                             catch (Exception e) {
-                                Logger.ErrorDebugLine(e.Message, e);
+                                Logger.ErrorDebugLine(e);
                             }
                         }
                         else {
                             _localJson = new LocalJsonDb();
+                        }
+                        // 这里的逻辑是，当用户在主界面填写矿工名时，矿工名会被交换到注册表从而当用户使用群控但没有填写群控矿工名时作为缺省矿工名
+                        // 但是旧版本的挖矿端并没有把矿工名交换到注册表去所以当注册表中没有矿工名时需读取local.litedb中的矿工名
+                        if (string.IsNullOrEmpty(_localJson.MinerProfile.MinerName)) {
+                            _localJson.MinerProfile.MinerName = GetMinerName();
+                            if (string.IsNullOrEmpty(_localJson.MinerProfile.MinerName)) {
+                                var repository = CreateLocalRepository<Profile.MinerProfileData>(isUseJson: false);
+                                Profile.MinerProfileData data = repository.GetByKey(Profile.MinerProfileData.DefaultId);
+                                if (data != null) {
+                                    _localJson.MinerProfile.MinerName = data.MinerName;
+                                }
+                            }
                         }
                         _localJsonInited = true;
                     }
@@ -94,7 +134,7 @@ namespace NTMiner {
         }
 
         private static ServerJsonDb _serverJson;
-        private static IServerJsonDb ServerJson {
+        public static IServerJsonDb ServerJson {
             get {
                 ServerJsonInit();
                 return _serverJson;
@@ -105,6 +145,7 @@ namespace NTMiner {
             _serverJsonInited = false;
         }
 
+        #region ServerJsonInit
         private static readonly object _serverJsonlocker = new object();
         private static bool _serverJsonInited = false;
         // 从磁盘读取server.json反序列化为ServerJson对象
@@ -118,7 +159,7 @@ namespace NTMiner {
                                 ServerJsonDb data = VirtualRoot.JsonSerializer.Deserialize<ServerJsonDb>(serverJson);
                                 _serverJson = data;
                                 if (KernelBrandId != Guid.Empty) {
-                                    var kernelToRemoves = data.Kernels.Where(a => a.BrandId != NTMinerRoot.KernelBrandId).ToArray();
+                                    var kernelToRemoves = data.Kernels.Where(a => a.BrandId != KernelBrandId).ToArray();
                                     foreach (var item in kernelToRemoves) {
                                         data.Kernels.Remove(item);
                                     }
@@ -131,9 +172,19 @@ namespace NTMiner {
                                         data.PoolKernels.Remove(item);
                                     }
                                 }
+                                if (PoolBrandId != Guid.Empty) {
+                                    var poolToRemoves = data.Pools.Where(a => a.BrandId != PoolBrandId && data.Pools.Any(b => b.CoinId == a.CoinId && b.BrandId == poolBrandId)).ToArray();
+                                    foreach (var item in poolToRemoves) {
+                                        data.Pools.Remove(item);
+                                    }
+                                    var poolKernelToRemoves = data.PoolKernels.Where(a => poolToRemoves.Any(b => b.Id == a.PoolId)).ToArray();
+                                    foreach (var item in poolKernelToRemoves) {
+                                        data.PoolKernels.Remove(item);
+                                    }
+                                }
                             }
                             catch (Exception e) {
-                                Logger.ErrorDebugLine(e.Message, e);
+                                Logger.ErrorDebugLine(e);
                             }
                         }
                         else {
@@ -144,87 +195,43 @@ namespace NTMiner {
                 }
             }
         }
+        #endregion
 
-        // 将当前的系统状态导出为serverVersion.json
-        public static string ExportServerVersionJson() {
-            var root = Current;
-            ServerJsonDb serverJsonObj = new ServerJsonDb {
-                Coins = root.CoinSet.Cast<CoinData>().ToArray(),
-                Groups = root.GroupSet.Cast<GroupData>().ToArray(),
-                CoinGroups = root.CoinGroupSet.Cast<CoinGroupData>().ToArray(),
-                KernelInputs = root.KernelInputSet.Cast<KernelInputData>().ToArray(),
-                KernelOutputs = root.KernelOutputSet.Cast<KernelOutputData>().ToArray(),
-                KernelOutputFilters = root.KernelOutputFilterSet.Cast<KernelOutputFilterData>().ToArray(),
-                KernelOutputTranslaters = root.KernelOutputTranslaterSet.Cast<KernelOutputTranslaterData>().ToArray(),
-                Kernels = root.KernelSet.Cast<KernelData>().ToList(),
-                CoinKernels = root.CoinKernelSet.Cast<CoinKernelData>().ToList(),
-                PoolKernels = root.PoolKernelSet.Cast<PoolKernelData>().Where(a => !string.IsNullOrEmpty(a.Args)).ToList(),
-                Pools = root.PoolSet.Cast<PoolData>().ToArray(),
-                SysDicItems = root.SysDicItemSet.Cast<SysDicItemData>().ToArray(),
-                SysDics = root.SysDicSet.Cast<SysDicData>().ToArray()
-            };
+        /// <summary>
+        /// 将当前的系统状态导出到给定的json文件
+        /// </summary>
+        /// <returns></returns>
+        public static void ExportServerVersionJson(string jsonFileFullName) {
+            ServerJsonDb serverJsonObj = new ServerJsonDb(Instance);
+            serverJsonObj.CutJsonSize();
             string json = VirtualRoot.JsonSerializer.Serialize(serverJsonObj);
-            File.WriteAllText(AssemblyInfo.ServerVersionJsonFileFullName, json);
-            return Path.GetFileName(AssemblyInfo.ServerVersionJsonFileFullName);
+            serverJsonObj.UnCut();
+            File.WriteAllText(jsonFileFullName, json);
         }
 
         public static void ExportWorkJson(MineWorkData mineWorkData, out string localJson, out string serverJson) {
             localJson = string.Empty;
             serverJson = string.Empty;
             try {
-                var root = Current;
-                var minerProfile = root.MinerProfile;
-                CoinProfileData mainCoinProfile = new CoinProfileData(minerProfile.GetCoinProfile(minerProfile.CoinId));
-                List<CoinProfileData> coinProfiles = new List<CoinProfileData> { mainCoinProfile };
-                List<PoolProfileData> poolProfiles = new List<PoolProfileData>();
-                CoinKernelProfileData coinKernelProfile = new CoinKernelProfileData(minerProfile.GetCoinKernelProfile(mainCoinProfile.CoinKernelId));
-                PoolProfileData mainCoinPoolProfile = new PoolProfileData(minerProfile.GetPoolProfile(mainCoinProfile.PoolId));
-                poolProfiles.Add(mainCoinPoolProfile);
-                if (coinKernelProfile.IsDualCoinEnabled) {
-                    CoinProfileData dualCoinProfile = new CoinProfileData(minerProfile.GetCoinProfile(coinKernelProfile.DualCoinId));
-                    coinProfiles.Add(dualCoinProfile);
-                    PoolProfileData dualCoinPoolProfile = new PoolProfileData(minerProfile.GetPoolProfile(dualCoinProfile.DualCoinPoolId));
-                    poolProfiles.Add(dualCoinPoolProfile);
-                }
-                LocalJsonDb localJsonObj = new LocalJsonDb {
-                    MinerProfile = new MinerProfileData(minerProfile) {
-                        MinerName = "{{MinerName}}"
-                    },
-                    MineWork = mineWorkData,
-                    CoinProfiles = coinProfiles.ToArray(),
-                    CoinKernelProfiles = new CoinKernelProfileData[] { coinKernelProfile },
-                    PoolProfiles = poolProfiles.ToArray(),
-                    TimeStamp = Timestamp.GetTimestamp(),
-                    Pools = root.PoolSet.Where(a => poolProfiles.Any(b => b.PoolId == a.GetId())).Select(a => new PoolData(a)).ToArray(),
-                    Wallets = minerProfile.GetWallets().Select(a => new WalletData(a)).ToArray()
-                };
+                LocalJsonDb localJsonObj = new LocalJsonDb(Instance, mineWorkData);
+                ServerJsonDb serverJsonObj = new ServerJsonDb(Instance, localJsonObj);
                 localJson = VirtualRoot.JsonSerializer.Serialize(localJsonObj);
-                root.CoinKernelSet.TryGetCoinKernel(coinKernelProfile.CoinKernelId, out ICoinKernel coinKernel);
-                root.KernelSet.TryGetKernel(coinKernel.KernelId, out IKernel kernel);
-                var coins = root.CoinSet.Cast<CoinData>().Where(a => localJsonObj.CoinProfiles.Any(b => b.CoinId == a.Id)).ToArray();
-                var coinGroups = root.CoinGroupSet.Cast<CoinGroupData>().Where(a => coins.Any(b => b.Id == a.CoinId)).ToArray();
-                var pools = root.PoolSet.Cast<PoolData>().Where(a => localJsonObj.PoolProfiles.Any(b => b.PoolId == a.Id)).ToArray();
-                ServerJsonDb serverJsonObj = new ServerJsonDb {
-                    Coins = coins,
-                    CoinGroups = coinGroups,
-                    Pools = pools,
-                    TimeStamp = Timestamp.GetTimestamp(),
-                    Groups = root.GroupSet.Cast<GroupData>().Where(a => coinGroups.Any(b => b.GroupId == a.Id)).ToArray(),
-                    KernelInputs = root.KernelInputSet.Cast<KernelInputData>().Where(a => a.Id == kernel.KernelInputId).ToArray(),
-                    KernelOutputs = root.KernelOutputSet.Cast<KernelOutputData>().Where(a => a.Id == kernel.KernelOutputId).ToArray(),
-                    KernelOutputFilters = root.KernelOutputFilterSet.Cast<KernelOutputFilterData>().Where(a => a.KernelOutputId == kernel.KernelOutputId).ToArray(),
-                    KernelOutputTranslaters = root.KernelOutputTranslaterSet.Cast<KernelOutputTranslaterData>().Where(a => a.KernelOutputId == kernel.KernelOutputId).ToArray(),
-                    Kernels = new List<KernelData> { (KernelData)kernel },
-                    CoinKernels = root.CoinKernelSet.Cast<CoinKernelData>().Where(a => localJsonObj.CoinKernelProfiles.Any(b => b.CoinKernelId == a.Id)).ToList(),
-                    PoolKernels = root.PoolKernelSet.Cast<PoolKernelData>().Where(a => !string.IsNullOrEmpty(a.Args) && pools.Any(b => b.Id == a.PoolId)).ToList(),
-                    SysDicItems = root.SysDicItemSet.Cast<SysDicItemData>().ToArray(),
-                    SysDics = root.SysDicSet.Cast<SysDicData>().ToArray()
-                };
                 serverJson = VirtualRoot.JsonSerializer.Serialize(serverJsonObj);
+                mineWorkData.ServerJsonSha1 = HashUtil.Sha1(serverJson);
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
             }
+        }
+
+        /// <summary>
+        /// 创建组合仓储，组合仓储由ServerDb和ProfileDb层序组成。
+        /// 如果是开发者则访问ServerDb且只访问GlobalDb，否则将ServerDb和ProfileDb并起来访问且不能修改删除GlobalDb。
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        public static IRepository<T> CreateCompositeRepository<T>(bool isUseJson) where T : class, ILevelEntity<Guid> {
+            return new CompositeRepository<T>(CreateServerRepository<T>(isUseJson), CreateLocalRepository<T>(isUseJson: false));
         }
 
         public static IRepository<T> CreateLocalRepository<T>(bool isUseJson) where T : class, IDbEntity<Guid> {
@@ -251,11 +258,12 @@ namespace NTMiner {
             return value;
         }
 
+        #region DiskSpace
         private static DateTime _diskSpaceOn = DateTime.MinValue;
         private static string _diskSpace = string.Empty;
         public static string DiskSpace {
             get {
-                if (_diskSpaceOn.AddMinutes(10) < DateTime.Now) {
+                if (_diskSpaceOn.AddMinutes(20) < DateTime.Now) {
                     _diskSpaceOn = DateTime.Now;
                     StringBuilder sb = new StringBuilder();
                     int len = sb.Length;
@@ -272,41 +280,103 @@ namespace NTMiner {
                 return _diskSpace;
             }
         }
+        #endregion
 
-        #region HotKey
-        public static string GetHotKey() {
-            object value = Windows.Registry.GetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "HotKey");
-            if (value == null) {
-                return "X";
-            }
-            return value.ToString();
+        #region MinerName 非群控模式时将矿工名交换到注册表从而作为群控模式时未指定矿工名的缺省矿工名
+        public static string GetMinerName() {
+            object value = Windows.WinRegistry.GetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "MinerName");
+            return (value ?? string.Empty).ToString();
         }
 
-        public static bool SetHotKey(string value) {
-            if (RegHotKey == null) {
-                return false;
+        public static void SetMinerName(string value) {
+            Windows.WinRegistry.SetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "MinerName", value);
+        }
+        #endregion
+
+        #region IsShowInTaskbar
+        public static bool GetIsShowInTaskbar() {
+            object value = Windows.WinRegistry.GetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "IsShowInTaskbar");
+            return value == null || value.ToString() == "True";
+        }
+
+        public static void SetIsShowInTaskbar(bool value) {
+            Windows.WinRegistry.SetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "IsShowInTaskbar", value);
+        }
+        #endregion
+
+        #region IsNoUi
+        public static bool GetIsNoUi() {
+            object value = Windows.WinRegistry.GetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "IsNoUi");
+            return value != null && value.ToString() == "True";
+        }
+
+        public static void SetIsNoUi(bool value) {
+            Windows.WinRegistry.SetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "IsNoUi", value);
+        }
+        #endregion
+
+        #region AutoNoUi
+        public static bool GetIsAutoNoUi() {
+            object value = Windows.WinRegistry.GetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "IsAutoNoUi");
+            return value != null && value.ToString() == "True";
+        }
+
+        public static void SetIsAutoNoUi(bool value) {
+            Windows.WinRegistry.SetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "IsAutoNoUi", value);
+        }
+        #endregion
+
+        #region AutoNoUiMinutes
+        public static int GetAutoNoUiMinutes() {
+            object value = Windows.WinRegistry.GetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "AutoNoUiMinutes");
+            if (value == null) {
+                return 10;
             }
-            if (string.IsNullOrEmpty(value)) {
-                return false;
-            }
-            if (Enum.TryParse(value, out System.Windows.Forms.Keys key) && key >= System.Windows.Forms.Keys.A && key <= System.Windows.Forms.Keys.Z) {
-                if (RegHotKey.Invoke(key)) {
-                    Windows.Registry.SetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "HotKey", value);
-                    return true;
-                }
-            }
-            return false;
+            int.TryParse(value.ToString(), out int v);
+            return v;
+        }
+
+        public static void SetAutoNoUiMinutes(int value) {
+            Windows.WinRegistry.SetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "AutoNoUiMinutes", value);
+        }
+        #endregion
+
+        #region IsShowNotifyIcon
+        public static bool GetIsShowNotifyIcon() {
+            object value = Windows.WinRegistry.GetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "IsShowNotifyIcon");
+            return value == null || value.ToString() == "True";
+        }
+
+        public static void SetIsShowNotifyIcon(bool value) {
+            Windows.WinRegistry.SetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "IsShowNotifyIcon", value);
+        }
+        #endregion
+
+        #region IsCloseMeanExit
+        public static bool GetIsCloseMeanExit() {
+            object value = Windows.WinRegistry.GetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "IsCloseMeanExit");
+            return value != null && value.ToString() == "True";
+        }
+
+        public static void SetIsCloseMeanExit(bool value) {
+            Windows.WinRegistry.SetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "IsCloseMeanExit", value);
         }
         #endregion
 
         #region IsShowCommandLine
         public static bool GetIsShowCommandLine() {
-            object isAutoBootValue = Windows.Registry.GetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "IsShowCommandLine");
+            object isAutoBootValue = Windows.WinRegistry.GetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "IsShowCommandLine");
             return isAutoBootValue != null && isAutoBootValue.ToString() == "True";
         }
 
         public static void SetIsShowCommandLine(bool value) {
-            Windows.Registry.SetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "IsShowCommandLine", value);
+            Windows.WinRegistry.SetValue(Registry.Users, NTMinerRegistry.NTMinerRegistrySubKey, "IsShowCommandLine", value);
+        }
+        #endregion
+
+        #region GetIsRemoteDesktopEnabled
+        public static bool GetIsRemoteDesktopEnabled() {
+            return (int)Windows.WinRegistry.GetValue(Registry.LocalMachine, "SYSTEM\\CurrentControlSet\\Control\\Terminal Server", "fDenyTSConnections") == 0;
         }
         #endregion
     }

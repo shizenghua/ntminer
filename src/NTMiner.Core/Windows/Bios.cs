@@ -5,7 +5,7 @@ namespace NTMiner.Windows {
     /// Class for retrieving information related to the BIOS
     /// </summary>
     public sealed class Bios {
-        public static readonly Bios Current = new Bios();
+        public static readonly Bios Instance = new Bios();
 
         #region Properties
 
@@ -74,7 +74,7 @@ namespace NTMiner.Windows {
         /// <param name="key">Key to get value for</param>
         /// <returns>Value for the specified key</returns>
         private string RetrieveBiosInfo(string key) {
-            using (RegistryKey rkey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey("HARDWARE\\DESCRIPTION\\System\\BIOS\\")) {
+            using (RegistryKey rkey = Registry.LocalMachine.OpenSubKey("HARDWARE\\DESCRIPTION\\System\\BIOS\\")) {
                 if (rkey != null) {
                     var obj = rkey.GetValue(key);
                     if (obj != null) {

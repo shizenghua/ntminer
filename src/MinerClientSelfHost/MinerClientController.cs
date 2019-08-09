@@ -6,30 +6,35 @@ using System;
 using System.Web.Http;
 
 namespace NTMiner {
+    /// <summary>
+    /// 端口号：<see cref="Consts.MinerClientPort"/>
+    /// </summary>
     public class MinerClientController : ApiController, IMinerClientController, IShowMainWindow {
         [HttpPost]
         public bool ShowMainWindow() {
             try {
-                VirtualRoot.Execute(new ShowMainWindowCommand());
+                VirtualRoot.Execute(new ShowMainWindowCommand(isToggle: false));
                 return true;
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
                 return false;
             }
         }
 
         [HttpPost]
-        public ResponseBase CloseNTMiner([FromBody]SignatureRequest request) {
+        public ResponseBase CloseNTMiner([FromBody]SignRequest request) {
             if (request == null) {
                 return ResponseBase.InvalidInput("参数错误");
             }
             try {
-                VirtualRoot.Execute(new CloseNTMinerCommand());
+                TimeSpan.FromMilliseconds(100).Delay().ContinueWith((t) => {
+                    VirtualRoot.Execute(new CloseNTMinerCommand());
+                });
                 return ResponseBase.Ok();
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
                 return ResponseBase.ServerError(e.Message);
             }
         }
@@ -40,26 +45,26 @@ namespace NTMiner {
                 return ResponseBase.InvalidInput("参数错误");
             }
             try {
-                NTMinerRoot.Current.RestartMine(isWork: request.WorkId != Guid.Empty);
+                NTMinerRoot.Instance.RestartMine(isWork: request.WorkId != Guid.Empty);
                 return ResponseBase.Ok();
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
                 return ResponseBase.ServerError(e.Message);
             }
         }
 
         [HttpPost]
-        public ResponseBase StopMine([FromBody]SignatureRequest request) {
+        public ResponseBase StopMine([FromBody]SignRequest request) {
             if (request == null) {
                 return ResponseBase.InvalidInput("参数错误");
             }
             try {
-                NTMinerRoot.Current.StopMineAsync();
+                NTMinerRoot.Instance.StopMineAsync();
                 return ResponseBase.Ok();
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
                 return ResponseBase.ServerError(e.Message);
             }
         }
@@ -70,11 +75,11 @@ namespace NTMiner {
                 return ResponseBase.InvalidInput("参数错误");
             }
             try {
-                NTMinerRoot.Current.MinerProfile.SetMinerProfileProperty(request.PropertyName, request.Value);
+                NTMinerRoot.Instance.MinerProfile.SetMinerProfileProperty(request.PropertyName, request.Value);
                 return ResponseBase.Ok();
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
                 return ResponseBase.ServerError(e.Message);
             }
         }
@@ -86,7 +91,7 @@ namespace NTMiner {
                 return data;
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
                 return null;
             }
         }

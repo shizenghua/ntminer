@@ -1,11 +1,12 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\..\packages\Costura.Fody.4.0.0\build\Costura.Fody.props" Condition="Exists('..\..\packages\Costura.Fody.4.0.0\build\Costura.Fody.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{4B8A3AEC-4021-480A-8C5F-DCA17E6867B0}</ProjectGuid>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <RootNamespace>NTMiner</RootNamespace>
     <AssemblyName>NTMinerDaemon</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
@@ -19,7 +20,7 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>..\NTMiner.Core\Daemon\</OutputPath>
+    <OutputPath>..\MinerClient\Daemon\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -29,7 +30,7 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>..\NTMiner.Core\Daemon\</OutputPath>
+    <OutputPath>..\MinerClient\Daemon\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -44,9 +45,12 @@
     </ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Costura, Version=1.6.2.0, Culture=neutral, PublicKeyToken=9919ef960d84173d, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\Costura.Fody.1.6.2\lib\portable-net+sl+win+wpa+wp\Costura.dll</HintPath>
-      <Private>False</Private>
+    <Reference Include="Costura, Version=4.0.0.0, Culture=neutral, PublicKeyToken=9919ef960d84173d, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\Costura.Fody.4.0.0\lib\net40\Costura.dll</HintPath>
+    </Reference>
+    <Reference Include="Interop.NetFwTypeLib">
+      <HintPath>..\ThirdPartyDlls\Interop.NetFwTypeLib.dll</HintPath>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
     </Reference>
     <Reference Include="LiteDB, Version=4.1.4.0, Culture=neutral, PublicKeyToken=4ee40123013c9f27, processorArchitecture=MSIL">
       <HintPath>..\..\packages\LiteDB.4.1.4\lib\net40\LiteDB.dll</HintPath>
@@ -61,6 +65,7 @@
     <Reference Include="System.Core" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Drawing" />
+    <Reference Include="System.Management" />
     <Reference Include="System.Net.Http, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <HintPath>..\..\packages\Microsoft.Net.Http.2.0.20710.0\lib\net40\System.Net.Http.dll</HintPath>
     </Reference>
@@ -76,14 +81,28 @@
     <Reference Include="System.Web.Http.SelfHost, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <HintPath>..\..\packages\Microsoft.AspNet.WebApi.SelfHost.4.0.30506.0\lib\net40\System.Web.Http.SelfHost.dll</HintPath>
     </Reference>
-    <Reference Include="System.Windows.Forms" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\MinerClientSelfHost\HttpServer.cs">
       <Link>HttpServer.cs</Link>
     </Compile>
+    <Compile Include="..\MinerClient\RemoteDesktopEnabler\Firewall.cs">
+      <Link>RemoteDesktopEnabler\Firewall.cs</Link>
+    </Compile>
+    <Compile Include="..\MinerClient\RemoteDesktopEnabler\Rdp.cs">
+      <Link>RemoteDesktopEnabler\Rdp.cs</Link>
+    </Compile>
     <Compile Include="..\NTMiner.Core\Windows\Power.cs">
       <Link>Windows\Power.cs</Link>
+    </Compile>
+    <Compile Include="..\NTMiner.Core\Windows\WMI.cs">
+      <Link>Windows\WMI.cs</Link>
+    </Compile>
+    <Compile Include="..\NTMinerlib\HandlerId.cs">
+      <Link>HandlerId.cs</Link>
+    </Compile>
+    <Compile Include="..\NTMinerlib\Messages.Timing.cs">
+      <Link>Messages.Timing.cs</Link>
     </Compile>
     <Compile Include="..\NTMinerlib\NTMinerRegistry.cs">
       <Link>NTMinerRegistry.cs</Link>
@@ -100,8 +119,11 @@
     <Compile Include="..\NTMinerlib\User\IUserSet.cs">
       <Link>User\IUserSet.cs</Link>
     </Compile>
-    <Compile Include="..\NTMinerlib\WebApiConst.cs">
-      <Link>WebApiConst.cs</Link>
+    <Compile Include="..\NTMinerlib\Consts.cs">
+      <Link>Consts.cs</Link>
+    </Compile>
+    <Compile Include="..\NTMinerlib\VirtualRoot.partials.cs">
+      <Link>VirtualRoot.partials.cs</Link>
     </Compile>
     <Compile Include="..\NTMinerlib\Windows\Cmd.cs">
       <Link>Windows\Cmd.cs</Link>
@@ -109,16 +131,14 @@
     <Compile Include="..\NTMinerlib\Windows\ConsoleHandler.cs">
       <Link>Windows\ConsoleHandler.cs</Link>
     </Compile>
-    <Compile Include="..\NTMinerlib\Windows\Registry.cs">
-      <Link>Windows\Registry.cs</Link>
-    </Compile>
     <Compile Include="..\NTMinerlib\Windows\TaskKill.cs">
       <Link>Windows\TaskKill.cs</Link>
     </Compile>
-    <Compile Include="ExtendedNotifyIcon.cs" />
+    <Compile Include="..\NTMinerlib\Windows\WinRegistry.cs">
+      <Link>Windows\WinRegistry.cs</Link>
+    </Compile>
     <Compile Include="HostRoot.cs" />
     <Compile Include="IHostRoot.cs" />
-    <Compile Include="NoDevFee\NoDevFeeUtil.partials.PositionUtil.cs" />
     <Compile Include="NoDevFee\WinDivert.cs" />
     <Compile Include="NoDevFee\NoDevFeeUtil.cs" />
     <Compile Include="NoDevFee\WinDivertExtract.cs" />
@@ -129,18 +149,18 @@
     <Compile Include="VirtualRoot.cs" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="NoDevFee\WinDivert.lib" />
     <EmbeddedResource Include="NoDevFee\WinDivert64.sys" />
     <None Include="app.config" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="FodyWeavers.xml" />
-  </ItemGroup>
-  <ItemGroup>
     <EmbeddedResource Include="NoDevFee\WinDivert.dll" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\NTMinerBus\NTMinerBus.csproj">
+      <Project>{e17f278a-e393-403e-9d37-e371036d7a02}</Project>
+      <Name>NTMinerBus</Name>
+    </ProjectReference>
     <ProjectReference Include="..\NTMinerDataObjects\NTMinerDataObjects.csproj">
       <Project>{defc7387-f9fa-4651-a281-6612efb7fbb6}</Project>
       <Name>NTMinerDataObjects</Name>
@@ -154,13 +174,15 @@
     <EmbeddedResource Include="logo.ico" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Import Project="..\..\packages\Fody.2.0.0\build\portable-net+sl+win+wpa+wp\Fody.targets" Condition="Exists('..\..\packages\Fody.2.0.0\build\portable-net+sl+win+wpa+wp\Fody.targets')" />
+  <PropertyGroup>
+    <PostBuildEvent>$(TargetName) --sha1</PostBuildEvent>
+  </PropertyGroup>
+  <Import Project="..\..\packages\Fody.5.0.0\build\Fody.targets" Condition="Exists('..\..\packages\Fody.5.0.0\build\Fody.targets')" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
       <ErrorText>这台计算机上缺少此项目引用的 NuGet 程序包。使用“NuGet 程序包还原”可下载这些程序包。有关更多信息，请参见 http://go.microsoft.com/fwlink/?LinkID=322105。缺少的文件是 {0}。</ErrorText>
     </PropertyGroup>
-    <Error Condition="!Exists('..\..\packages\Fody.2.0.0\build\portable-net+sl+win+wpa+wp\Fody.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\packages\Fody.2.0.0\build\portable-net+sl+win+wpa+wp\Fody.targets'))" />
-    <Error Condition="!Exists('..\..\packages\Costura.Fody.1.6.2\build\portable-net+sl+win+wpa+wp\Costura.Fody.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\packages\Costura.Fody.1.6.2\build\portable-net+sl+win+wpa+wp\Costura.Fody.targets'))" />
+    <Error Condition="!Exists('..\..\packages\Fody.5.0.0\build\Fody.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\packages\Fody.5.0.0\build\Fody.targets'))" />
+    <Error Condition="!Exists('..\..\packages\Costura.Fody.4.0.0\build\Costura.Fody.props')" Text="$([System.String]::Format('$(ErrorText)', '..\..\packages\Costura.Fody.4.0.0\build\Costura.Fody.props'))" />
   </Target>
-  <Import Project="..\..\packages\Costura.Fody.1.6.2\build\portable-net+sl+win+wpa+wp\Costura.Fody.targets" Condition="Exists('..\..\packages\Costura.Fody.1.6.2\build\portable-net+sl+win+wpa+wp\Costura.Fody.targets')" />
 </Project>

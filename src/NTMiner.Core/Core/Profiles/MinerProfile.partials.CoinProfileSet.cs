@@ -105,6 +105,13 @@ namespace NTMiner.Core.Profiles {
                     }
                 }
 
+                public Guid PoolId1 {
+                    get => _data.PoolId1;
+                    private set {
+                        _data.PoolId1 = value;
+                    }
+                }
+
                 public string Wallet {
                     get => _data.Wallet;
                     private set {
@@ -146,6 +153,13 @@ namespace NTMiner.Core.Profiles {
                     }
                 }
 
+                public double CalcInput {
+                    get => _data.CalcInput;
+                    private set {
+                        _data.CalcInput = value;
+                    }
+                }
+
                 private static Dictionary<string, PropertyInfo> _sProperties;
                 [IgnoreReflectionSet]
                 private static Dictionary<string, PropertyInfo> Properties {
@@ -161,7 +175,7 @@ namespace NTMiner.Core.Profiles {
                     if (Properties.TryGetValue(propertyName, out PropertyInfo propertyInfo)) {
                         if (propertyInfo.CanWrite) {
                             if (propertyInfo.PropertyType == typeof(Guid)) {
-                                value = DictionaryExtensions.ConvertToGuid(value);
+                                value = VirtualRoot.ConvertToGuid(value);
                             }
                             var oldValue = propertyInfo.GetValue(this, null);
                             if (oldValue != value) {

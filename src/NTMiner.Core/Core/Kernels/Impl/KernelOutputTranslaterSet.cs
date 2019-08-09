@@ -1,5 +1,4 @@
-﻿using NTMiner.Core.SysDics;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,14 +14,14 @@ namespace NTMiner.Core.Kernels.Impl {
         public KernelOutputTranslaterSet(INTMinerRoot root, bool isUseJson) {
             _root = root;
             _isUseJson = isUseJson;
-            VirtualRoot.Window<AddKernelOutputTranslaterCommand>("添加内核输出翻译器", LogEnum.DevConsole,
+            _root.ServerContextWindow<AddKernelOutputTranslaterCommand>("添加内核输出翻译器", LogEnum.DevConsole,
                 action: (message) => {
                     InitOnece();
                     if (message == null || message.Input == null || message.Input.GetId() == Guid.Empty) {
                         throw new ArgumentNullException();
                     }
                     if (string.IsNullOrEmpty(message.Input.RegexPattern)) {
-                        throw new ValidationException("ConsoleTranslater RegexPattern can't be null or empty");
+                        throw new ValidationException($"{nameof(message.Input.RegexPattern)} can't be null or empty");
                     }
                     if (_dicById.ContainsKey(message.Input.GetId())) {
                         return;
@@ -37,15 +36,15 @@ namespace NTMiner.Core.Kernels.Impl {
                     repository.Add(entity);
 
                     VirtualRoot.Happened(new KernelOutputTranslaterAddedEvent(entity));
-                }).AddToCollection(root.ContextHandlers);
-            VirtualRoot.Window<UpdateKernelOutputTranslaterCommand>("更新内核输出翻译器", LogEnum.DevConsole,
+                });
+            _root.ServerContextWindow<UpdateKernelOutputTranslaterCommand>("更新内核输出翻译器", LogEnum.DevConsole,
                 action: (message) => {
                     InitOnece();
                     if (message == null || message.Input == null || message.Input.GetId() == Guid.Empty) {
                         throw new ArgumentNullException();
                     }
                     if (string.IsNullOrEmpty(message.Input.RegexPattern)) {
-                        throw new ValidationException("ConsoleTranslater RegexPattern can't be null or empty");
+                        throw new ValidationException($"{nameof(message.Input.RegexPattern)} can't be null or empty");
                     }
                     if (!_dicById.ContainsKey(message.Input.GetId())) {
                         return;
@@ -68,8 +67,8 @@ namespace NTMiner.Core.Kernels.Impl {
                     repository.Update(entity);
 
                     VirtualRoot.Happened(new KernelOutputTranslaterUpdatedEvent(entity));
-                }).AddToCollection(root.ContextHandlers);
-            VirtualRoot.Window<RemoveKernelOutputTranslaterCommand>("移除内核输出翻译器", LogEnum.DevConsole,
+                });
+            _root.ServerContextWindow<RemoveKernelOutputTranslaterCommand>("移除内核输出翻译器", LogEnum.DevConsole,
                 action: (message) => {
                     InitOnece();
                     if (message == null || message.EntityId == Guid.Empty) {
@@ -88,11 +87,10 @@ namespace NTMiner.Core.Kernels.Impl {
                     repository.Remove(entity.Id);
 
                     VirtualRoot.Happened(new KernelOutputTranslaterRemovedEvent(entity));
-                }).AddToCollection(root.ContextHandlers);
-            VirtualRoot.On<SysDicItemUpdatedEvent>("LogColor字典项更新后刷新翻译器内存", LogEnum.DevConsole,
+                });
+            _root.ServerContextOn<SysDicItemUpdatedEvent>($"{Consts.LogColorDicKey}字典项更新后刷新翻译器内存", LogEnum.DevConsole,
                 action: message => {
-                    ISysDic dic;
-                    if (!_root.SysDicSet.TryGetSysDic("LogColor", out dic)) {
+                    if (!_root.SysDicSet.TryGetSysDic(Consts.LogColorDicKey, out ISysDic dic)) {
                         return;
                     }
                     if (message.Source.DicId != dic.GetId()) {
@@ -103,11 +101,11 @@ namespace NTMiner.Core.Kernels.Impl {
                             _colorDic.Remove(entity);
                         }
                     }
-                }).AddToCollection(root.ContextHandlers);
+                });
         }
 
         private bool _isInited = false;
-        private object _locker = new object();
+        private readonly object _locker = new object();
 
         private void InitOnece() {
             if (_isInited) {
@@ -154,8 +152,7 @@ namespace NTMiner.Core.Kernels.Impl {
 
         public bool TryGetKernelOutputTranslater(Guid consoleTranslaterId, out IKernelOutputTranslater consoleTranslater) {
             InitOnece();
-            KernelOutputTranslaterData t;
-            var r = _dicById.TryGetValue(consoleTranslaterId, out t);
+            var r = _dicById.TryGetValue(consoleTranslaterId, out KernelOutputTranslaterData t);
             consoleTranslater = t;
             return r;
         }
@@ -173,8 +170,7 @@ namespace NTMiner.Core.Kernels.Impl {
         private Dictionary<IKernelOutputTranslater, ConsoleColor> _colorDic = new Dictionary<IKernelOutputTranslater, ConsoleColor>();
         private ConsoleColor GetColor(IKernelOutputTranslater consoleTranslater) {
             if (!_colorDic.ContainsKey(consoleTranslater)) {
-                ISysDicItem dicItem;
-                if (NTMinerRoot.Current.SysDicItemSet.TryGetDicItem("LogColor", consoleTranslater.Color, out dicItem)) {
+                if (NTMinerRoot.Instance.SysDicItemSet.TryGetDicItem(Consts.LogColorDicKey, consoleTranslater.Color, out ISysDicItem dicItem)) {
                     _colorDic.Add(consoleTranslater, GetColor(dicItem.Value));
                 }
                 else {
@@ -192,8 +188,7 @@ namespace NTMiner.Core.Kernels.Impl {
             if (string.IsNullOrEmpty(color)) {
                 return ConsoleColor.White;
             }
-            ConsoleColor consoleColor;
-            if (color.TryParse(out consoleColor)) {
+            if (color.TryParse(out ConsoleColor consoleColor)) {
                 return consoleColor;
             }
             return ConsoleColor.White;
@@ -248,11 +243,8 @@ namespace NTMiner.Core.Kernels.Impl {
                     }
                     Match match = regex.Match(input);
                     if (match.Success) {
-                        if (VirtualRoot.Lang.Code == "zh-CN" || (isPre && consoleTranslater.IsPre)) {
-                            if (!string.IsNullOrEmpty(consoleTranslater.Replacement)) {
-                                input = regex.Replace(input, consoleTranslater.Replacement);
-                            }
-                        }
+                        string replacement = consoleTranslater.Replacement ?? string.Empty;
+                        input = regex.Replace(input, replacement);
                         if (!string.IsNullOrEmpty(consoleTranslater.Color)) {
                             color = GetColor(consoleTranslater);
                         }
@@ -260,7 +252,7 @@ namespace NTMiner.Core.Kernels.Impl {
                 }
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
             }
         }
     }

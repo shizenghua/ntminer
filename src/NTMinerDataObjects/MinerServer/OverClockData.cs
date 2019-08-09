@@ -13,6 +13,8 @@ namespace NTMiner.MinerServer {
 
         public Guid CoinId { get; set; }
 
+        public GpuType GpuType { get; set; }
+
         public string Name { get; set; }
 
         public int CoreClockDelta { get; set; }
@@ -21,18 +23,14 @@ namespace NTMiner.MinerServer {
 
         public int PowerCapacity { get; set; }
 
+        public int TempLimit { get; set; }
+
+        public bool IsAutoFanSpeed { get; set; }
+
         public int Cool { get; set; }
 
         public StringBuilder GetSignData() {
-            StringBuilder sb = new StringBuilder();
-            sb.Append(nameof(Id)).Append(Id)
-                .Append(nameof(CoinId)).Append(CoinId)
-                .Append(nameof(Name)).Append(Name)
-                .Append(nameof(CoreClockDelta)).Append(CoreClockDelta)
-                .Append(nameof(MemoryClockDelta)).Append(MemoryClockDelta)
-                .Append(nameof(PowerCapacity)).Append(PowerCapacity)
-                .Append(nameof(Cool)).Append(Cool);
-            return sb;
+            return this.BuildSign();
         }
     }
 }

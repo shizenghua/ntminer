@@ -1,40 +1,18 @@
-﻿using MahApps.Metro.Controls;
-using NTMiner.Wpf;
+﻿using NTMiner.Wpf;
 using System;
 using System.Windows;
 using System.Windows.Input;
 
 namespace NTMiner.Views {
-    public partial class InputWindow : MetroWindow {
-        public static void ShowDialog(
-            string title,
-            string text,
-            Func<string, string> check,
-            Action<string> onOk) {
-            Window window = new InputWindow(title, text, check, onOk);
-            if (window.Owner != null) {
-                window.MouseBottom();
-                double ownerOpacity = window.Owner.Opacity;
-                window.Owner.Opacity = 0.6;
-                window.ShowDialog();
-                window.Owner.Opacity = ownerOpacity;
-            }
-            else {
-                window.ShowDialog();
-            }
-        }
-
+    public partial class InputWindow : BlankWindow {
         private readonly Func<string, string> _check;
         private readonly Action<string> _onOk;
 
-        private InputWindow(
+        public InputWindow(
             string title, 
             string text, 
             Func<string, string> check,
             Action<string> onOk) {
-            if (onOk == null) {
-                throw new ArgumentNullException(nameof(onOk));
-            }
             InitializeComponent();
             TbTitle.Text = title;
             TbText.Text = text;
@@ -44,7 +22,7 @@ namespace NTMiner.Views {
                 this.Owner = owner;
             }
             _check = check;
-            _onOk = onOk;
+            _onOk = onOk ?? throw new ArgumentNullException(nameof(onOk));
         }
 
         private void KbOkButton_Click(object sender, RoutedEventArgs e) {

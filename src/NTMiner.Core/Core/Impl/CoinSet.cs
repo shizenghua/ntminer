@@ -13,7 +13,7 @@ namespace NTMiner.Core.Impl {
         public CoinSet(INTMinerRoot root, bool isUseJson) {
             _root = root;
             _isUseJson = isUseJson;
-            VirtualRoot.Window<AddCoinCommand>("添加币种", LogEnum.DevConsole,
+            _root.ServerContextWindow<AddCoinCommand>("添加币种", LogEnum.DevConsole,
                 action: message => {
                     InitOnece();
                     if (message == null || message.Input == null || message.Input.GetId() == Guid.Empty) {
@@ -26,7 +26,7 @@ namespace NTMiner.Core.Impl {
                         return;
                     }
                     if (_dicByCode.ContainsKey(message.Input.Code)) {
-                        throw new DuplicateCodeException();
+                        throw new ValidationException("编码重复");
                     }
                     CoinData entity = new CoinData().Update(message.Input);
                     _dicById.Add(entity.Id, entity);
@@ -35,8 +35,8 @@ namespace NTMiner.Core.Impl {
                     repository.Add(entity);
 
                     VirtualRoot.Happened(new CoinAddedEvent(entity));
-                }).AddToCollection(root.ContextHandlers);
-            VirtualRoot.Window<UpdateCoinCommand>("更新币种", LogEnum.DevConsole,
+                });
+            _root.ServerContextWindow<UpdateCoinCommand>("更新币种", LogEnum.DevConsole,
                 action: message => {
                     InitOnece();
                     if (message == null || message.Input == null || message.Input.GetId() == Guid.Empty) {
@@ -57,8 +57,8 @@ namespace NTMiner.Core.Impl {
                     repository.Update(entity);
 
                     VirtualRoot.Happened(new CoinUpdatedEvent(message.Input));
-                }).AddToCollection(root.ContextHandlers);
-            VirtualRoot.Window<RemoveCoinCommand>("移除币种", LogEnum.DevConsole,
+                });
+            _root.ServerContextWindow<RemoveCoinCommand>("移除币种", LogEnum.DevConsole,
                 action: message => {
                     InitOnece();
                     if (message == null || message.EntityId == Guid.Empty) {
@@ -92,7 +92,7 @@ namespace NTMiner.Core.Impl {
                     repository.Remove(entity.Id);
 
                     VirtualRoot.Happened(new CoinRemovedEvent(entity));
-                }).AddToCollection(root.ContextHandlers);
+                });
         }
 
         private bool _isInited = false;

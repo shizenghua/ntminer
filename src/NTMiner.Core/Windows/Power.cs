@@ -1,15 +1,31 @@
 ﻿using System;
+using System.Runtime.InteropServices;
 
 namespace NTMiner.Windows {
     public static class Power {
-        public static void Restart() {
-            Cmd.RunClose("shutdown", "-r -f -t 0");
+        [DllImport("kernel32.dll")]
+        internal static extern uint SetThreadExecutionState(ExecutionFlag flags);
+        [Flags]
+        internal enum ExecutionFlag : uint {
+            ES_AWAYMODE_REQUIRED = 0x00000040,
+            Awaymode = 0x00000040,
+            System = 0x00000001,
+            Display = 0x00000002,
+            Continus = 0x80000000,
         }
 
-        public static void Shutdown() {
-            Cmd.RunClose("shutdown", "-s -f -t 0");
+        public static void Restart(int delaySeconds = 0) {
+            Cmd.RunClose("shutdown", "-r -f -t " + delaySeconds);
         }
 
+        public static void Shutdown(int delaySeconds = 0) {
+            Cmd.RunClose("shutdown", "-s -f -t " + delaySeconds);
+        }
+
+        /// <summary>
+        /// 关闭系统休眠
+        /// </summary>
+        /// <returns></returns>
         public static bool PowerCfgOff() {
             try {
                 int exitcode = -1;

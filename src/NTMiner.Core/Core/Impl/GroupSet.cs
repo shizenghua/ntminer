@@ -11,7 +11,7 @@ namespace NTMiner.Core.Impl {
         public GroupSet(INTMinerRoot root, bool isUseJson) {
             _isUseJson = isUseJson;
             _root = root;
-            VirtualRoot.Window<AddGroupCommand>("添加组", LogEnum.DevConsole,
+            _root.ServerContextWindow<AddGroupCommand>("添加组", LogEnum.DevConsole,
                 action: (message) => {
                     InitOnece();
                     if (message == null || message.Input == null || message.Input.GetId() == Guid.Empty) {
@@ -20,14 +20,17 @@ namespace NTMiner.Core.Impl {
                     if (_dicById.ContainsKey(message.Input.GetId())) {
                         return;
                     }
+                    if (string.IsNullOrEmpty(message.Input.Name)) {
+                        throw new ValidationException("Group name can't be null or empty");
+                    }
                     GroupData entity = new GroupData().Update(message.Input);
                     _dicById.Add(entity.Id, entity);
                     var repository = NTMinerRoot.CreateServerRepository<GroupData>(isUseJson);
                     repository.Add(entity);
 
                     VirtualRoot.Happened(new GroupAddedEvent(entity));
-                }).AddToCollection(root.ContextHandlers);
-            VirtualRoot.Window<UpdateGroupCommand>("更新组", LogEnum.DevConsole,
+                });
+            _root.ServerContextWindow<UpdateGroupCommand>("更新组", LogEnum.DevConsole,
                 action: (message) => {
                     InitOnece();
                     if (message == null || message.Input == null || message.Input.GetId() == Guid.Empty) {
@@ -48,8 +51,8 @@ namespace NTMiner.Core.Impl {
                     repository.Update(entity);
 
                     VirtualRoot.Happened(new GroupUpdatedEvent(entity));
-                }).AddToCollection(root.ContextHandlers);
-            VirtualRoot.Window<RemoveGroupCommand>("移除组", LogEnum.DevConsole,
+                });
+            _root.ServerContextWindow<RemoveGroupCommand>("移除组", LogEnum.DevConsole,
                 action: (message) => {
                     InitOnece();
                     if (message == null || message.EntityId == Guid.Empty) {
@@ -68,7 +71,7 @@ namespace NTMiner.Core.Impl {
                     repository.Remove(message.EntityId);
 
                     VirtualRoot.Happened(new GroupRemovedEvent(entity));
-                }).AddToCollection(root.ContextHandlers);
+                });
         }
 
         private bool _isInited = false;

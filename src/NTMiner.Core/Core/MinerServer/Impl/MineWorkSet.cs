@@ -2,7 +2,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace NTMiner.Core.MinerServer.Impl {
     public class MineWorkSet : IMineWorkSet {
@@ -27,7 +26,7 @@ namespace NTMiner.Core.MinerServer.Impl {
                         VirtualRoot.Happened(new MineWorkAddedEvent(entity));
                     }
                     else {
-                        Write.UserLine(response?.Description, ConsoleColor.Red);
+                        Write.UserFail(response?.Description);
                     }
                 });
             VirtualRoot.Window<UpdateMineWorkCommand>("更新工作", LogEnum.DevConsole,
@@ -46,9 +45,7 @@ namespace NTMiner.Core.MinerServer.Impl {
                         if (!response.IsSuccess()) {
                             entity.Update(oldValue);
                             VirtualRoot.Happened(new MineWorkUpdatedEvent(entity));
-                            if (response != null) {
-                                Write.UserLine(response.Description, ConsoleColor.Red);
-                            }
+                            Write.UserFail(response.ReadMessage(exception));
                         }
                     });
                     VirtualRoot.Happened(new MineWorkUpdatedEvent(entity));
@@ -68,8 +65,8 @@ namespace NTMiner.Core.MinerServer.Impl {
                             _dicById.Remove(entity.Id);
                             VirtualRoot.Happened(new MineWorkRemovedEvent(entity));
                         }
-                        else if (response != null) {
-                            Write.UserLine(response.Description, ConsoleColor.Red);
+                        else {
+                            Write.UserFail(response.ReadMessage(exception));
                         }
                     });
                 });

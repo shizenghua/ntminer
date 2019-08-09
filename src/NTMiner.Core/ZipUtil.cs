@@ -41,12 +41,17 @@ namespace NTMiner {
                         }
                     }
                     else if (theEntry.IsFile) {
-                        string destfile = path;
-                        FileStream streamWriter = File.Create(destfile);
-                        const int bufferSize = 1024 * 30;
-                        byte[] data = new byte[bufferSize];
-                        StreamUtils.Copy(zipInputStream, streamWriter, data);
-                        streamWriter.Close();
+                        // 放进try catch保证一个文件的失败不影响另一个
+                        try {
+                            FileStream streamWriter = File.Create(path);
+                            const int bufferSize = 1024 * 30;
+                            byte[] data = new byte[bufferSize];
+                            StreamUtils.Copy(zipInputStream, streamWriter, data);
+                            streamWriter.Close();
+                        }
+                        catch(Exception e) {
+                            Logger.ErrorDebugLine(e);
+                        }
                     }
                 }
             }

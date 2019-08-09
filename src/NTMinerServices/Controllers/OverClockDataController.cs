@@ -4,13 +4,7 @@ using System.Collections.Generic;
 using System.Web.Http;
 
 namespace NTMiner.Controllers {
-    public class OverClockDataController : ApiController, IOverClockDataController {
-        private string ClientIp {
-            get {
-                return Request.GetWebClientIp();
-            }
-        }
-
+    public class OverClockDataController : ApiControllerBase, IOverClockDataController {
         #region AddOrUpdateOverClockData
         [HttpPost]
         public ResponseBase AddOrUpdateOverClockData([FromBody]DataRequest<OverClockData> request) {
@@ -18,14 +12,14 @@ namespace NTMiner.Controllers {
                 return ResponseBase.InvalidInput("参数错误");
             }
             try {
-                if (!request.IsValid(HostRoot.Current.UserSet.GetUser, ClientIp, out ResponseBase response)) {
+                if (!request.IsValid(User, Sign, Timestamp, ClientIp, out ResponseBase response)) {
                     return response;
                 }
-                HostRoot.Current.OverClockDataSet.AddOrUpdate(request.Data);
+                HostRoot.Instance.OverClockDataSet.AddOrUpdate(request.Data);
                 return ResponseBase.Ok();
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
                 return ResponseBase.ServerError(e.Message);
             }
         }
@@ -38,14 +32,14 @@ namespace NTMiner.Controllers {
                 return ResponseBase.InvalidInput("参数错误");
             }
             try {
-                if (!request.IsValid(HostRoot.Current.UserSet.GetUser, ClientIp, out ResponseBase response)) {
+                if (!request.IsValid(User, Sign, Timestamp, ClientIp, out ResponseBase response)) {
                     return response;
                 }
-                HostRoot.Current.OverClockDataSet.Remove(request.Data);
+                HostRoot.Instance.OverClockDataSet.Remove(request.Data);
                 return ResponseBase.Ok();
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
                 return ResponseBase.ServerError(e.Message);
             }
         }
@@ -55,11 +49,11 @@ namespace NTMiner.Controllers {
         [HttpPost]
         public DataResponse<List<OverClockData>> OverClockDatas([FromBody]OverClockDatasRequest request) {
             try {
-                var data = HostRoot.Current.OverClockDataSet.GetAll();
+                var data = HostRoot.Instance.OverClockDataSet.GetAll();
                 return DataResponse<List<OverClockData>>.Ok(data);
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
                 return ResponseBase.ServerError<DataResponse<List<OverClockData>>>(e.Message);
             }
         }

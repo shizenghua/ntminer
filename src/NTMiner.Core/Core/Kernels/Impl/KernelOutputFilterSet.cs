@@ -14,14 +14,14 @@ namespace NTMiner.Core.Kernels.Impl {
         public KernelOutputFilterSet(INTMinerRoot root, bool isUseJson) {
             _root = root;
             _isUseJson = isUseJson;
-            VirtualRoot.Window<AddKernelOutputFilterCommand>("添加内核输出过滤器", LogEnum.DevConsole,
+            _root.ServerContextWindow<AddKernelOutputFilterCommand>("添加内核输出过滤器", LogEnum.DevConsole,
                 action: (message) => {
                     InitOnece();
                     if (message == null || message.Input == null || message.Input.GetId() == Guid.Empty) {
                         throw new ArgumentNullException();
                     }
                     if (string.IsNullOrEmpty(message.Input.RegexPattern)) {
-                        throw new ValidationException("KernelOutputFilter RegexPattern can't be null or empty");
+                        throw new ValidationException($"{nameof(message.Input.RegexPattern)} can't be null or empty");
                     }
                     if (_dicById.ContainsKey(message.Input.GetId())) {
                         return;
@@ -36,15 +36,15 @@ namespace NTMiner.Core.Kernels.Impl {
                     repository.Add(entity);
 
                     VirtualRoot.Happened(new KernelOutputFilterAddedEvent(entity));
-                }).AddToCollection(root.ContextHandlers);
-            VirtualRoot.Window<UpdateKernelOutputFilterCommand>("更新内核输出过滤器", LogEnum.DevConsole,
+                });
+            _root.ServerContextWindow<UpdateKernelOutputFilterCommand>("更新内核输出过滤器", LogEnum.DevConsole,
                 action: (message) => {
                     InitOnece();
                     if (message == null || message.Input == null || message.Input.GetId() == Guid.Empty) {
                         throw new ArgumentNullException();
                     }
                     if (string.IsNullOrEmpty(message.Input.RegexPattern)) {
-                        throw new ValidationException("KernelOutputFilter RegexPattern can't be null or empty");
+                        throw new ValidationException($"{nameof(message.Input.RegexPattern)} can't be null or empty");
                     }
                     if (!_dicById.ContainsKey(message.Input.GetId())) {
                         return;
@@ -58,8 +58,8 @@ namespace NTMiner.Core.Kernels.Impl {
                     repository.Update(entity);
 
                     VirtualRoot.Happened(new KernelOutputFilterUpdatedEvent(entity));
-                }).AddToCollection(root.ContextHandlers);
-            VirtualRoot.Window<RemoveKernelOutputFilterCommand>("移除内核输出过滤器", LogEnum.DevConsole,
+                });
+            _root.ServerContextWindow<RemoveKernelOutputFilterCommand>("移除内核输出过滤器", LogEnum.DevConsole,
                 action: (message) => {
                     InitOnece();
                     if (message == null || message.EntityId == Guid.Empty) {
@@ -75,7 +75,7 @@ namespace NTMiner.Core.Kernels.Impl {
                     repository.Remove(entity.Id);
 
                     VirtualRoot.Happened(new KernelOutputFilterRemovedEvent(entity));
-                }).AddToCollection(root.ContextHandlers);
+                });
         }
 
         private bool _isInited = false;
@@ -177,7 +177,7 @@ namespace NTMiner.Core.Kernels.Impl {
                 }
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
             }
         }
     }

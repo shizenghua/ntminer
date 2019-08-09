@@ -28,8 +28,8 @@ namespace NTMiner.Core.MinerServer.Impl {
                             _dicById.Add(entity.Id, entity);
                             VirtualRoot.Happened(new MinerGroupAddedEvent(entity));
                         }
-                        else if(response != null) {
-                            Write.UserLine(response.Description, ConsoleColor.Red);
+                        else {
+                            Write.UserFail(response.ReadMessage(exception));
                         }
                     });
                 });
@@ -52,9 +52,7 @@ namespace NTMiner.Core.MinerServer.Impl {
                         if (!response.IsSuccess()) {
                             entity.Update(oldValue);
                             VirtualRoot.Happened(new MinerGroupUpdatedEvent(entity));
-                            if (response != null) {
-                                Write.UserLine(response.Description, ConsoleColor.Red);
-                            }
+                            Write.UserFail(response.ReadMessage(exception));
                         }
                     });
                     VirtualRoot.Happened(new MinerGroupUpdatedEvent(entity));
@@ -74,15 +72,15 @@ namespace NTMiner.Core.MinerServer.Impl {
                             _dicById.Remove(entity.Id);
                             VirtualRoot.Happened(new MinerGroupRemovedEvent(entity));
                         }
-                        else if (response != null) {
-                            Write.UserLine(response.Description, ConsoleColor.Red);
+                        else {
+                            Write.UserFail(response.ReadMessage(exception));
                         }
                     });
                 });
         }
 
         private bool _isInited = false;
-        private object _locker = new object();
+        private readonly object _locker = new object();
 
         private void InitOnece() {
             if (_isInited) {
@@ -109,8 +107,7 @@ namespace NTMiner.Core.MinerServer.Impl {
 
         public bool TryGetMinerGroup(Guid id, out IMinerGroup group) {
             InitOnece();
-            MinerGroupData g;
-            var r = _dicById.TryGetValue(id, out g);
+            var r = _dicById.TryGetValue(id, out MinerGroupData g);
             group = g;
             return r;
         }

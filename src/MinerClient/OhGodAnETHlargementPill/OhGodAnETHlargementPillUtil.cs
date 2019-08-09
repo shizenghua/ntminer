@@ -3,16 +3,21 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 
+/// <summary>
+/// 注意不要挪动这里的命名空间也不要挪动该代码文件所处的程序集
+/// 嵌入的资源的位置和命名空间有关契约关系
+/// </summary>
 namespace NTMiner.OhGodAnETHlargementPill {
     public static class OhGodAnETHlargementPillUtil {
-        private static string s_processName = "OhGodAnETHlargementPill-r2";
-        private static string s_tempDir = SpecialPath.TempDirFullName;
-        private static string s_fileFullName = Path.Combine(s_tempDir, s_processName + ".exe");
+        private static readonly string s_processName = "OhGodAnETHlargementPill-r2";
+        private static readonly string s_tempDir = SpecialPath.TempDirFullName;
+        private static readonly string s_fileFullName = Path.Combine(s_tempDir, s_processName + ".exe");
 
         public static void Start() {
             try {
-                if (NTMinerRoot.Current.GpuSet.Any(a => a.Name.IndexOf("1080", StringComparison.OrdinalIgnoreCase) != -1)) {
+                if (NTMinerRoot.Instance.GpuSet.Any(a => a.Name.IndexOf("1080", StringComparison.OrdinalIgnoreCase) != -1)) {
                     ExtractResource();
                     Process[] processes = Process.GetProcessesByName(s_processName);
                     if (processes == null || processes.Length == 0) {
@@ -25,7 +30,7 @@ namespace NTMiner.OhGodAnETHlargementPill {
                             }
                         }
                         catch (Exception e) {
-                            Logger.ErrorDebugLine(e.Message, e);
+                            Logger.ErrorDebugLine(e);
                         }
                         Logger.OkWriteLine("小药丸启动成功");
                     }
@@ -35,22 +40,24 @@ namespace NTMiner.OhGodAnETHlargementPill {
                 }
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
             }
         }
 
         public static void Stop() {
             try {
-                if (NTMinerRoot.Current.GpuSet.Any(a => a.Name.IndexOf("1080", StringComparison.OrdinalIgnoreCase) != -1)) {
-                    Windows.TaskKill.Kill(s_processName);
-                    Logger.OkWriteLine("成功停止小药丸");
+                if (NTMinerRoot.Instance.GpuSet.Any(a => a.Name.IndexOf("1080", StringComparison.OrdinalIgnoreCase) != -1)) {
+                    Task.Factory.StartNew(() => {
+                        Windows.TaskKill.Kill(s_processName, waitForExit: true);
+                        Logger.OkWriteLine("成功停止小药丸");
+                    });
                 }
                 else {
                     Logger.InfoDebugLine("没有发现1080卡，不适用小药丸");
                 }
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
             }
         }
 
@@ -61,14 +68,10 @@ namespace NTMiner.OhGodAnETHlargementPill {
                 }
                 Type type = typeof(OhGodAnETHlargementPillUtil);
                 Assembly assembly = type.Assembly;
-                using (var stream = assembly.GetManifestResourceStream(type, s_processName + ".exe")) {
-                    byte[] data = new byte[stream.Length];
-                    stream.Read(data, 0, data.Length);
-                    File.WriteAllBytes(s_fileFullName, data);
-                }
+                assembly.ExtractManifestResource(type, s_processName + ".exe", s_fileFullName);
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
             }
         }
     }

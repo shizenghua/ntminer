@@ -6,7 +6,7 @@ namespace NTMiner.Windows {
     /// Class for getting information related to the OS.
     /// </summary>
     public sealed class OS {
-        public static readonly OS Current = new OS();
+        public static readonly OS Instance = new OS();
 
         #region Properties
 
@@ -57,9 +57,27 @@ namespace NTMiner.Windows {
             }
         }
 
+        /// <summary>
+        /// 是否开启了windows自动登录
+        /// </summary>
+        public bool IsAutoAdminLogon {
+            get {
+                return GetAutoAdminLogon() == "1";
+            }
+        }
+
         #endregion
 
         #region Methods
+
+        private string GetAutoAdminLogon() {
+            const string key = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon";
+            var value = WinRegistry.GetValue(Registry.LocalMachine, key, "AutoAdminLogon");
+            if (value == null) {
+                return string.Empty;
+            }
+            return value.ToString();
+        }
 
         /// <summary>
         /// Gets Windows-related values from specified keys
@@ -67,7 +85,7 @@ namespace NTMiner.Windows {
         /// <param name="key">Key to get value for</param>
         /// <returns>Value for the specified key</returns>
         private string RetrieveWindowsInfo(string key) {
-            using (RegistryKey rkey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\")) {
+            using (RegistryKey rkey = Registry.LocalMachine.OpenSubKey("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\")) {
                 if (rkey != null) {
                     var obj = rkey.GetValue(key);
                     if (obj != null) {

@@ -6,11 +6,14 @@ namespace NTMiner.MinerClient {
             GpuTable = new GpuSpeedData[0];
         }
 
+        public int KernelSelfRestartCount { get; set; }
         public bool IsAutoBoot { get; set; }
         public bool IsAutoStart { get; set; }
         public bool IsAutoRestartKernel { get; set; }
         public bool IsNoShareRestartKernel { get; set; }
         public int NoShareRestartKernelMinutes { get; set; }
+        public bool IsNoShareRestartComputer { get; set; }
+        public int NoShareRestartComputerMinutes { get; set; }
         public bool IsPeriodicRestartKernel { get; set; }
         public int PeriodicRestartKernelHours { get; set; }
         public bool IsPeriodicRestartComputer { get; set; }
@@ -36,6 +39,8 @@ namespace NTMiner.MinerClient {
         public string MinerIp { get; set; }
 
         public string GpuInfo { get; set; }
+
+        public Guid MineWorkId { get; set; }
 
         public string MinerName { get; set; }
 

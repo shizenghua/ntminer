@@ -1,17 +1,14 @@
-﻿<metro:MetroWindow x:Class="NTMiner.Views.DialogWindow"
+﻿<blankWindow:BlankWindow x:Class="NTMiner.Views.DialogWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
-        xmlns:metro="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+        xmlns:blankWindow="http://NTMiner.com"
         xmlns:controls="clr-namespace:NTMiner.Controls"
         xmlns:vm="clr-namespace:NTMiner.Vms"
         xmlns:local="clr-namespace:NTMiner.Views"
-        UseNoneWindowStyle="True"
-        WindowTransitionsEnabled="False"
         ResizeMode="NoResize"
-        WindowStyle="None"
         SizeToContent="Height"
         FontSize="20"
         BorderBrush="{StaticResource IconFillColor}"
@@ -19,27 +16,12 @@
         MouseDown="Window_MouseDown"
         Background="White"
         mc:Ignorable="d" Width="400" MinHeight="200">
-    <metro:MetroWindow.Resources>
+    <blankWindow:BlankWindow.Resources>
         <ResourceDictionary>
             <PathGeometry x:Key="Icon" Figures="{x:Null}">
             </PathGeometry>
-            <sys:String x:Key="Title">
-                Title
-            </sys:String>
-            <sys:String x:Key="Message">
-                Message
-            </sys:String>
-            <sys:String x:Key="OK">
-                OK
-            </sys:String>
-            <sys:String x:Key="Yes">
-                Yes
-            </sys:String>
-            <sys:String x:Key="No">
-                No
-            </sys:String>
         </ResourceDictionary>
-    </metro:MetroWindow.Resources>
+    </blankWindow:BlankWindow.Resources>
     <Grid> 
         <Grid.RowDefinitions>
             <RowDefinition Height="30"></RowDefinition>
@@ -57,19 +39,46 @@
                     Data="{DynamicResource Icon}"
                     Stretch="Fill"/>
                 <TextBlock
-                    Text="{DynamicResource Title}"
+                    x:Name="TextBlockTitle"
                     Foreground="{StaticResource ThemeForeground}"
                     Margin="4 4 0 0"
                     FontSize="16" />
             </WrapPanel>
+            <controls:KbSystemCloseButton
+                DockPanel.Dock="Right" 
+                HorizontalAlignment="Right" 
+				Height="30"
+				KbSystemButtonSize="36" />
+            <controls:KbLinkButton 
+                x:Name="BtnHelp"
+                Margin="0 0 4 0"
+                Visibility="Collapsed"
+                DockPanel.Dock="Right" 
+                HorizontalAlignment="Right" 
+                VerticalAlignment="Center"
+				KbDisplayLine="False"
+                Click="Help_Click"
+				KbSystemButtonHoverBackground="Transparent"
+				Background="Transparent"
+				Foreground="{StaticResource ThemeForeground}">
+                <WrapPanel>
+                    <Path 
+                        Width="14"
+                        Height="14"
+                        Fill="{StaticResource ThemeForeground}"
+                        Data="{StaticResource Icon_Help}"
+                        Stretch="Fill"/>
+                    <TextBlock Margin="2 0 0 0" FontSize="13" Foreground="{StaticResource ThemeForeground}">帮助</TextBlock>
+                </WrapPanel>
+            </controls:KbLinkButton>
         </DockPanel>
         <StackPanel Grid.Row="1" Margin="10 20 10 10" HorizontalAlignment="Center" VerticalAlignment="Top">
-            <TextBlock Text="{DynamicResource Message}" VerticalAlignment="Center" TextWrapping="Wrap"></TextBlock>
+            <TextBlock x:Name="TextBlockMessage" VerticalAlignment="Center" TextWrapping="Wrap"></TextBlock>
         </StackPanel>
         <WrapPanel Grid.Row="2" HorizontalAlignment="Center" Margin="0 0 0 30">
             <controls:KbButton 
-                Padding="10 0"
-                Margin="10 0"
+                Padding="15 2"
+                Margin="20 0"
                 x:Name="BtnOk"
                 Click="KbOkButton_Click"
                 Background="{StaticResource ThemeBackground}"
@@ -83,17 +92,17 @@
                         Data="{StaticResource Icon_Ok}"
                         Fill="{StaticResource ThemeForeground}"
                         Stretch="Fill" />
-                    <Label
+                    <TextBlock
                         FontSize="14"
+                        Padding="0 4"
                         Foreground="{StaticResource ThemeForeground}"
                         VerticalAlignment="Center"
-                        Content="{DynamicResource OK}" />
+                        Text="好" />
                 </WrapPanel>
             </controls:KbButton>
             <controls:KbButton 
-                Padding="10 0" 
-                Width="80" 
-                Margin="10 0"
+                Padding="15 2"
+                Margin="20 0"
                 x:Name="BtnYes"
                 Click="KbYesButton_Click"
                 Background="{StaticResource ThemeBackground}"
@@ -107,17 +116,17 @@
                         Data="{StaticResource Icon_Ok}"
                         Fill="{StaticResource ThemeForeground}"
                         Stretch="Fill" />
-                    <Label
+                    <TextBlock
                         FontSize="14"
+                        Padding="0 4"
                         Foreground="{StaticResource ThemeForeground}"
                         VerticalAlignment="Center"
-                        Content="{DynamicResource Yes}" />
+                        Text="是" />
                 </WrapPanel>
             </controls:KbButton>
             <controls:KbButton 
-                Padding="10 0" 
-                Width="80" 
-                Margin="10 0"
+                Padding="15 2"
+                Margin="20 0"
                 x:Name="BtnNo"
                 Click="KbNoButton_Click"
                 Background="Red"
@@ -130,30 +139,14 @@
                         Data="{StaticResource Icon_Close}"
                         Fill="White"
                         Stretch="Fill" />
-                    <Label
+                    <TextBlock
                         FontSize="14"
+                        Padding="0 4"
                         Foreground="White"
                         VerticalAlignment="Center"
-                        Content="{DynamicResource No}" />
+                        Text="否" />
                 </WrapPanel>
             </controls:KbButton>
         </WrapPanel>
-        <controls:KbButton
-            HorizontalAlignment="Right"
-            ToolTip="{x:Static local:DialogWindow.ViewId}"
-            Command="{x:Static vm:WpfStatic.ShowLangViewItems}"
-            CommandParameter="{x:Static local:DialogWindow.ViewId}"
-            Padding="4 0"
-            Background="{StaticResource ThemeBackground}"
-            Foreground="{StaticResource ThemeForeground}">
-            <WrapPanel>
-                <Path
-                    Width="12"
-                    Height="12"
-                    Data="{StaticResource Icon_Translate}"
-                    Fill="{StaticResource ThemeForeground}"
-                    Stretch="Fill" />
-            </WrapPanel>
-        </controls:KbButton>
     </Grid>
-</metro:MetroWindow>
+</blankWindow:BlankWindow>

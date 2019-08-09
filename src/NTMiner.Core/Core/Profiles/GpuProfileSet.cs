@@ -1,9 +1,10 @@
-﻿using NTMiner.Core.Profiles.Impl;
+﻿using NTMiner.Core.Gpus;
 using NTMiner.JsonDb;
 using NTMiner.MinerClient;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace NTMiner.Core.Profiles {
     public class GpuProfileSet {
@@ -22,7 +23,7 @@ namespace NTMiner.Core.Profiles {
 
         private GpuData[] CreateGpus() {
             List<GpuData> list = new List<GpuData>();
-            foreach (var gpu in NTMinerRoot.Current.GpuSet) {
+            foreach (var gpu in NTMinerRoot.Instance.GpuSet) {
                 list.Add(new GpuData {
                     Index = gpu.Index,
                     Name = gpu.Name,
@@ -33,7 +34,10 @@ namespace NTMiner.Core.Profiles {
                     CoolMax = gpu.CoolMax,
                     CoolMin = gpu.CoolMin,
                     PowerMax = gpu.PowerMax,
-                    PowerMin = gpu.PowerMin
+                    PowerMin = gpu.PowerMin,
+                    TempLimitDefault = gpu.TempLimitDefault,
+                    TempLimitMax = gpu.TempLimitMax,
+                    TempLimitMin = gpu.TempLimitMin
                 });
             }
             return list.ToArray();
@@ -57,28 +61,54 @@ namespace NTMiner.Core.Profiles {
                     }
                     VirtualRoot.Happened(new GpuProfileAddedOrUpdatedEvent(data));
                 });
-            VirtualRoot.Window<OverClockCommand>("处理超频命令", LogEnum.DevConsole,
-                action: message => {
-                    if (root.GpuSet.TryGetGpu(message.Input.Index, out IGpu gpu)) {
-                        message.Input.OverClock(gpu.OverClock);
-                    }
-                });
             VirtualRoot.Window<CoinOverClockCommand>("处理币种超频命令", LogEnum.DevConsole,
                 action: message => {
-                    if (IsOverClockGpuAll(message.CoinId)) {
-                        GpuProfileData overClockData = _data.GpuProfiles.FirstOrDefault(a => a.CoinId == message.CoinId && a.Index == NTMinerRoot.GpuAllId);
-                        if (overClockData != null) {
-                            VirtualRoot.Execute(new OverClockCommand(overClockData));
-                        }
-                    }
-                    else {
-                        foreach (var overClockData in _data.GpuProfiles.Where(a => a.CoinId == message.CoinId)) {
-                            if (overClockData.Index != NTMinerRoot.GpuAllId) {
-                                VirtualRoot.Execute(new OverClockCommand(overClockData));
+                    Task.Factory.StartNew(() => {
+                        if (IsOverClockGpuAll(message.CoinId)) {
+                            GpuProfileData overClockData = _data.GpuProfiles.FirstOrDefault(a => a.CoinId == message.CoinId && a.Index == NTMinerRoot.GpuAllId);
+                            if (overClockData != null) {
+                                OverClock(root, overClockData);
                             }
                         }
-                    }
+                        else {
+                            foreach (var overClockData in _data.GpuProfiles.Where(a => a.CoinId == message.CoinId)) {
+                                if (overClockData.Index != NTMinerRoot.GpuAllId) {
+                                    OverClock(root, overClockData);
+                                }
+                            }
+                        }
+                    });
                 });
+        }
+
+        private void OverClock(INTMinerRoot root, IGpuProfile data) {
+            if (root.GpuSet.TryGetGpu(data.Index, out IGpu gpu)) {
+                IOverClock overClock = root.GpuSet.OverClock;
+                if (!data.IsAutoFanSpeed) {
+                    overClock.SetCool(data.Index, data.Cool);
+                }
+                overClock.SetCoreClock(data.Index, data.CoreClockDelta);
+                overClock.SetMemoryClock(data.Index, data.MemoryClockDelta);
+                overClock.SetPowerCapacity(data.Index, data.PowerCapacity);
+                overClock.SetThermCapacity(data.Index, data.TempLimit);
+                string coreClockText = "默认";
+                if (data.CoreClockDelta != 0) {
+                    coreClockText = data.CoreClockDelta.ToString();
+                }
+                string memoryClockText = "默认";
+                if (data.MemoryClockDelta != 0) {
+                    memoryClockText = data.MemoryClockDelta.ToString();
+                }
+                if (data.Index == NTMinerRoot.GpuAllId) {
+                    Write.UserLine($"统一超频：核心({coreClockText}),显存({memoryClockText}),功耗({data.PowerCapacity}),温度({data.TempLimit}),风扇({data.Cool})", "OverClock", ConsoleColor.Yellow);
+                }
+                else {
+                    Write.UserLine($"GPU{gpu.Index}超频：核心({coreClockText}),显存({memoryClockText}),功耗({data.PowerCapacity}),温度({data.TempLimit}),风扇({data.Cool})", "OverClock", ConsoleColor.Yellow);
+                }
+                if (root.GpuSet.GpuType == GpuType.AMD) {
+                    overClock.RefreshGpuState(data.Index);
+                }
+            }
         }
 
         private void Save() {
@@ -102,16 +132,16 @@ namespace NTMiner.Core.Profiles {
                 if (!_isInited) {
                     string json = SpecialPath.ReadGpuProfilesJsonFile();
                     if (!string.IsNullOrEmpty(json)) {
-                        try {
-                            GpuProfilesJsonDb data = VirtualRoot.JsonSerializer.Deserialize<GpuProfilesJsonDb>(json);
+                        // 反序列化不报异常，但如果格式不正确返回值可能为null
+                        GpuProfilesJsonDb data = VirtualRoot.JsonSerializer.Deserialize<GpuProfilesJsonDb>(json);
+                        if (data != null) {
                             _data = data;
                         }
-                        catch (Exception e) {
-                            Logger.ErrorDebugLine(e.Message, e);
+                        else {
+                            Save();
                         }
                     }
                     else {
-                        _data = NewJsonDb();
                         Save();
                     }
                     _isInited = true;

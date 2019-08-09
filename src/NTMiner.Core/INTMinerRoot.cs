@@ -1,44 +1,38 @@
-﻿using NTMiner.Bus;
+﻿using NTMiner.AppSetting;
+using NTMiner.Bus;
 using NTMiner.Core;
 using NTMiner.Core.Gpus;
 using NTMiner.Core.Kernels;
 using NTMiner.Core.MinerServer;
 using NTMiner.Core.Profiles;
-using NTMiner.Core.SysDics;
 using NTMiner.User;
 using System;
 using System.Collections.Generic;
 
 namespace NTMiner {
     public interface INTMinerRoot {
-        List<IDelegateHandler> ContextHandlers { get; }
-
-        event Action OnContextReInited;
-        event Action OnReRendContext;
-        event Action OnMinerProfileReInited;
-        event Action OnReRendMinerProfile;
-
+        DelegateHandler<TCmd> ServerContextWindow<TCmd>(string description, LogEnum logType, Action<TCmd> action) where TCmd : ICmd;
+        DelegateHandler<TEvent> ServerContextOn<TEvent>(string description, LogEnum logType, Action<TEvent> action) where TEvent : IEvent;
+        
         void ReInitMinerProfile();
 
         IUserSet UserSet { get; }
 
         DateTime CreatedOn { get; }
 
-        IAppSettingSet AppSettingSet { get; }
+        IAppSettingSet ServerAppSettingSet { get; }
+
+        IAppSettingSet LocalAppSettingSet { get; }
 
         void Init(Action callback);
 
         void Exit();
-
-        void Start();
 
         void StartMine();
 
         void RestartMine(bool isWork = false);
 
         void StopMineAsync(Action callback = null);
-
-        IPackageDownloader PackageDownloader { get; }
 
         IMineContext CurrentMineContext { get; }
 
@@ -53,10 +47,6 @@ namespace NTMiner {
         IColumnsShowSet ColumnsShowSet { get; }
 
         IOverClockDataSet OverClockDataSet { get; }
-
-        string QQGroup { get; }
-
-        int SpeedHistoryLengthByMinute { get; }
 
         string GpuSetInfo { get; }
 
@@ -82,6 +72,12 @@ namespace NTMiner {
 
         IKernelSet KernelSet { get; }
 
+        IFileWriterSet FileWriterSet { get; }
+
+        IFragmentWriterSet FragmentWriterSet { get; }
+
+        IPackageSet PackageSet { get; }
+
         IKernelProfileSet KernelProfileSet { get; }
 
         IGpusSpeed GpusSpeed { get; }
@@ -96,6 +92,9 @@ namespace NTMiner {
 
         IKernelOutputTranslaterSet KernelOutputTranslaterSet { get; }
 
-        string BuildAssembleArgs();
+        IWorkerEventSet WorkerEventSet { get; }
+
+        IKernelOutputKeywordSet KernelOutputKeywordSet { get; }
+        string BuildAssembleArgs(out Dictionary<string, string> parameters, out Dictionary<Guid, string> fileWriters, out Dictionary<Guid, string> fragments);
     }
 }

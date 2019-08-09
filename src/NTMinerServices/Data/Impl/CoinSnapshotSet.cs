@@ -50,7 +50,7 @@ namespace NTMiner.Data.Impl {
                             _dataList.Add(item);
                         }
                     }
-                    Write.DevLine("将最近20分钟的快照载入内存");
+                    Write.DevDebug("将最近20分钟的快照载入内存");
                     _isInited = true;
                 }
             }
@@ -66,7 +66,7 @@ namespace NTMiner.Data.Impl {
                 int miningCount = 0;
                 Dictionary<string, CoinSnapshotData> dicByCoinCode = new Dictionary<string, CoinSnapshotData>();
                 foreach (var clientData in _root.ClientSet) {
-                    if (HostRoot.Current.HostConfig.IsPull) {
+                    if (HostRoot.Instance.HostConfig.IsPull) {
                         if (clientData.ModifiedOn.AddSeconds(15) < now) {
                             continue;
                         }
@@ -96,8 +96,8 @@ namespace NTMiner.Data.Impl {
                         miningCount++;
                         mainCoinSnapshotData.MainCoinMiningCount += 1;
                         mainCoinSnapshotData.Speed += clientData.MainCoinSpeed;
-                        mainCoinSnapshotData.ShareDelta += clientData.GetMainCoinShareDelta();
-                        mainCoinSnapshotData.RejectShareDelta += clientData.GetMainCoinRejectShareDelta();
+                        mainCoinSnapshotData.ShareDelta += clientData.GetMainCoinShareDelta(HostRoot.Instance.HostConfig.IsPull);
+                        mainCoinSnapshotData.RejectShareDelta += clientData.GetMainCoinRejectShareDelta(HostRoot.Instance.HostConfig.IsPull);
                     }
 
                     mainCoinSnapshotData.MainCoinOnlineCount += 1;
@@ -115,8 +115,8 @@ namespace NTMiner.Data.Impl {
                         if (clientData.IsMining) {
                             dualCoinSnapshotData.DualCoinMiningCount += 1;
                             dualCoinSnapshotData.Speed += clientData.DualCoinSpeed;
-                            dualCoinSnapshotData.ShareDelta += clientData.GetDualCoinShareDelta();
-                            dualCoinSnapshotData.RejectShareDelta += clientData.GetDualCoinRejectShareDelta();
+                            dualCoinSnapshotData.ShareDelta += clientData.GetDualCoinShareDelta(HostRoot.Instance.HostConfig.IsPull);
+                            dualCoinSnapshotData.RejectShareDelta += clientData.GetDualCoinRejectShareDelta(HostRoot.Instance.HostConfig.IsPull);
                         }
 
                         dualCoinSnapshotData.DualCoinOnlineCount += 1;
@@ -130,11 +130,11 @@ namespace NTMiner.Data.Impl {
                         var col = db.GetCollection<CoinSnapshotData>();
                         col.Insert(dicByCoinCode.Values);
                     }
-                    Write.DevLine("拍摄快照" + dicByCoinCode.Count + "张，快照时间戳：" + now.ToString("yyyy-MM-dd HH:mm:ss fff"));
+                    Write.DevDebug("拍摄快照" + dicByCoinCode.Count + "张，快照时间戳：" + now.ToString("yyyy-MM-dd HH:mm:ss fff"));
                 }
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
             }
         }
 

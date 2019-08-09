@@ -43,11 +43,11 @@ namespace NTMiner.User.Impl {
         private static List<UserData> GetUsers() {
             try {
                 DataRequest<Guid?> request = new DataRequest<Guid?> {
-                    LoginName = string.Empty,
                     Data = NTMinerRegistry.GetClientId()
                 };
                 using (HttpClient client = new HttpClient()) {
-                    Task<HttpResponseMessage> message = client.PostAsJsonAsync($"http://{NTMinerRegistry.GetControlCenterHost()}:{WebApiConst.ControlCenterPort}/api/ControlCenter/Users", request);
+                    client.Timeout = TimeSpan.FromMilliseconds(2000);
+                    Task<HttpResponseMessage> message = client.PostAsJsonAsync($"http://{NTMinerRegistry.GetControlCenterHost()}:{Consts.ControlCenterPort}/api/ControlCenter/Users", request);
                     DataResponse<List<UserData>> response = message.Result.Content.ReadAsAsync<DataResponse<List<UserData>>>().Result;
                     if (response != null && response.Data != null) {
                         return response.Data;
@@ -55,8 +55,7 @@ namespace NTMiner.User.Impl {
                 }
             }
             catch (Exception e) {
-                e = e.GetInnerException();
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
             }
             return new List<UserData>();
         }
@@ -68,8 +67,7 @@ namespace NTMiner.User.Impl {
 
         public IUser GetUser(string loginName) {
             InitOnece();
-            UserData userData;
-            if (_dicByLoginName.TryGetValue(loginName, out userData)) {
+            if (_dicByLoginName.TryGetValue(loginName, out UserData userData)) {
                 return userData;
             }
             return null;

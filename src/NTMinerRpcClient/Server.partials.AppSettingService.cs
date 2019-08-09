@@ -15,14 +15,15 @@ namespace NTMiner {
             public List<AppSettingData> GetAppSettings() {
                 try {
                     AppSettingsRequest request = new AppSettingsRequest {
-                        MessageId = Guid.NewGuid()
                     };
-                    DataResponse<List<AppSettingData>> response = Post<DataResponse<List<AppSettingData>>>(SControllerName, nameof(IAppSettingController.AppSettings), request);
-                    return response.Data;
+                    DataResponse<List<AppSettingData>> response = Post<DataResponse<List<AppSettingData>>>(SControllerName, nameof(IAppSettingController.AppSettings), null, request);
+                    if (response.IsSuccess()) {
+                        return response.Data;
+                    }
+                    return new List<AppSettingData>();
                 }
                 catch (Exception e) {
-                    e = e.GetInnerException();
-                    Logger.ErrorDebugLine(e.Message, e);
+                    Logger.ErrorDebugLine(e);
                     return new List<AppSettingData>();
                 }
             }
@@ -31,22 +32,18 @@ namespace NTMiner {
             #region SetAppSettingAsync
             public void SetAppSettingAsync(AppSettingData entity, Action<ResponseBase, Exception> callback) {
                 DataRequest<AppSettingData> request = new DataRequest<AppSettingData>() {
-                    Data = entity,
-                    LoginName = SingleUser.LoginName
+                    Data = entity
                 };
-                request.SignIt(SingleUser.PasswordSha1);
-                PostAsync(SControllerName, nameof(IAppSettingController.SetAppSetting), request, callback);
+                PostAsync(SControllerName, nameof(IAppSettingController.SetAppSetting), request.ToQuery(SingleUser.LoginName, SingleUser.PasswordSha1), request, callback);
             }
             #endregion
 
             #region SetAppSettingsAsync
             public void SetAppSettingsAsync(List<AppSettingData> entities, Action<ResponseBase, Exception> callback) {
                 DataRequest<List<AppSettingData>> request = new DataRequest<List<AppSettingData>>() {
-                    Data = entities,
-                    LoginName = SingleUser.LoginName
+                    Data = entities
                 };
-                request.SignIt(SingleUser.PasswordSha1);
-                PostAsync(SControllerName, nameof(IAppSettingController.SetAppSettings), request, callback);
+                PostAsync(SControllerName, nameof(IAppSettingController.SetAppSettings), request.ToQuery(SingleUser.LoginName, SingleUser.PasswordSha1), request, callback);
             }
             #endregion
         }

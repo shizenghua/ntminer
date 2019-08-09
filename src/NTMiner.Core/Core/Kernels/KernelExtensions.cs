@@ -5,6 +5,12 @@ using System.Linq;
 
 namespace NTMiner.Core.Kernels {
     public static class KernelExtensions {
+        public sealed class CommandName {
+            internal string Name;
+            // 根据这个判断是否换成过期
+            internal string KernelInputArgs;
+        }
+
         public static string GetProcessName(this IKernel kernel) {
             string commandName = GetCommandName(kernel);
             if (string.IsNullOrEmpty(commandName)) {
@@ -13,59 +19,75 @@ namespace NTMiner.Core.Kernels {
             return Path.GetFileNameWithoutExtension(commandName);
         }
 
-        public static string GetCommandName(this IKernel kernel, bool fromHelpArg = false) {
+        private static readonly Dictionary<Guid, CommandName> _commandNames = new Dictionary<Guid, CommandName>();
+        public static string GetCommandName(this IKernel kernel) {
             try {
-                if (kernel == null) {
+                if (kernel == null || kernel.KernelInputId == Guid.Empty) {
                     return string.Empty;
                 }
-                IKernelInput kernelInput;
-                if (kernel.KernelInputId == Guid.Empty || !NTMinerRoot.Current.KernelInputSet.TryGetKernelInput(kernel.KernelInputId, out kernelInput)) {
+                NTMinerRoot.Instance.KernelInputSet.TryGetKernelInput(kernel.KernelInputId, out IKernelInput kernelInput);
+                if (kernelInput == null) {
+                    Write.UserError("意外！没有正确配置内核输入，请QQ群联系小编解决。");
                     return string.Empty;
+                }
+                if (_commandNames.TryGetValue(kernel.GetId(), out CommandName commandName)) {
+                    // 如果KernelInput.Args没有变那么命令名就没有变
+                    if (kernelInput.Args == commandName.KernelInputArgs) {
+                        return commandName.Name;
+                    }
                 }
                 string args = kernelInput.Args;
-                if (fromHelpArg) {
-                    args = kernel.HelpArg;
-                }
                 if (!string.IsNullOrEmpty(args)) {
                     args = args.Trim();
                 }
                 else {
                     return string.Empty;
                 }
-                string commandName;
+                string cmdName;
                 if (args[0] == '"') {
                     int index = args.IndexOf('"', 1);
-                    commandName = args.Substring(1, index - 1);
+                    cmdName = args.Substring(1, index - 1);
                 }
                 else {
                     int firstSpaceIndex = args.IndexOf(' ');
                     if (firstSpaceIndex != -1) {
-                        commandName = args.Substring(0, args.IndexOf(' '));
+                        cmdName = args.Substring(0, args.IndexOf(' '));
                     }
                     else {
-                        commandName = args;
+                        cmdName = args;
                     }
                 }
-                return commandName;
+                if (commandName != null) {
+                    commandName.Name = cmdName;
+                    commandName.KernelInputArgs = kernelInput.Args;
+                }
+                else {
+                    _commandNames.Add(kernel.GetId(), new CommandName {
+                        Name = cmdName,
+                        KernelInputArgs = kernelInput.Args
+                    });
+                }
+                return cmdName;
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
                 return string.Empty;
             }
         }
 
-        public static bool IsSupported(this IKernel kernel) {
-            if (VirtualRoot.IsMinerStudio) {
+        public static bool IsSupported(this IKernel kernel, ICoin coin) {
+            // 群控客户端和无显卡的电脑的GpuSet类型都是空
+            if (NTMinerRoot.Instance.GpuSet.GpuType == GpuType.Empty) {
                 return true;
             }
-            foreach (var item in NTMinerRoot.Current.CoinKernelSet.Where(a => a.KernelId == kernel.GetId())) {
+            foreach (var item in NTMinerRoot.Instance.CoinKernelSet.Where(a => a.CoinId == coin.GetId() && a.KernelId == kernel.GetId())) {
                 if (item.SupportedGpu == SupportedGpu.Both) {
                     return true;
                 }
-                if (item.SupportedGpu == SupportedGpu.NVIDIA && NTMinerRoot.Current.GpuSet.GpuType == GpuType.NVIDIA) {
+                if (item.SupportedGpu == SupportedGpu.NVIDIA && NTMinerRoot.Instance.GpuSet.GpuType == GpuType.NVIDIA) {
                     return true;
                 }
-                if (item.SupportedGpu == SupportedGpu.AMD && NTMinerRoot.Current.GpuSet.GpuType == GpuType.AMD) {
+                if (item.SupportedGpu == SupportedGpu.AMD && NTMinerRoot.Instance.GpuSet.GpuType == GpuType.AMD) {
                     return true;
                 }
             }
@@ -101,25 +123,29 @@ namespace NTMiner.Core.Kernels {
             return Path.Combine(SpecialPath.DownloadDirFullName, kernel.Package);
         }
 
-        public static void ExtractPackage(this IKernel kernel) {
+        public static bool ExtractPackage(this IKernel kernel) {
             try {
                 string kernelDir = GetKernelDirFullName(kernel);
                 if (string.IsNullOrEmpty(kernelDir)) {
-                    return;
+                    return false;
                 }
                 if (!Directory.Exists(kernelDir)) {
                     Directory.CreateDirectory(kernelDir);
                 }
                 string packageZipFileFullName = GetPackageFileFullName(kernel);
                 if (string.IsNullOrEmpty(packageZipFileFullName)) {
-                    return;
+                    return false;
                 }
-                if (File.Exists(packageZipFileFullName)) {
-                    ZipUtil.DecompressZipFile(packageZipFileFullName, kernelDir);
+                if (!File.Exists(packageZipFileFullName)) {
+                    Write.DevDebug($"试图解压的{packageZipFileFullName}文件不存在");
+                    return false;
                 }
+                ZipUtil.DecompressZipFile(packageZipFileFullName, kernelDir);
+                return true;
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
+                return false;
             }
         }
     }

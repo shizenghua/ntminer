@@ -1,17 +1,14 @@
 ﻿using LiteDB;
-using NTMiner.MinerClient;
 using NTMiner.MinerServer;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Sockets;
 using System.Reflection;
 using System.Threading.Tasks;
 
 namespace NTMiner.Data.Impl {
     public class ClientSet : IClientSet {
-        // 内存中保留20分钟内活跃的客户端
         private readonly Dictionary<string, ClientData> _dicByObjectId = new Dictionary<string, ClientData>();
         private readonly Dictionary<Guid, ClientData> _dicByClientId = new Dictionary<Guid, ClientData>();
 
@@ -20,25 +17,41 @@ namespace NTMiner.Data.Impl {
         internal ClientSet(IHostRoot root) {
             _root = root;
             GetSpeed();
-            VirtualRoot.On<Per20SecondEvent>("周期性将内存中的ClientData列表刷入磁盘", LogEnum.DevConsole,
+            VirtualRoot.On<Per20SecondEvent>("周期性将内存中3分钟内活跃的ClientData列表刷入磁盘", LogEnum.DevConsole,
                 action: message => {
                     InitOnece();
+                    List<MinerData> minerDatas = new List<MinerData>();
                     lock (_locker) {
-                        DateTime time = message.Timestamp.AddMinutes(-5);
-                        using (LiteDatabase db = HostRoot.CreateLocalDb()) {
-                            var col = db.GetCollection<MinerData>();
-                            col.Upsert(_dicByObjectId.Values.Where(a => a.ModifiedOn > time).Select(a => new MinerData {
-                                CreatedOn = a.CreatedOn,
-                                GroupId = a.GroupId,
-                                Id = a.Id,
-                                ClientId = a.ClientId,
-                                MinerIp = a.MinerIp,
-                                MinerName = a.MinerName,
-                                WindowsLoginName = a.WindowsLoginName,
-                                WindowsPassword = a.WindowsPassword,
-                                WorkId = a.WorkId
-                            }));
+                        DateTime time = message.Timestamp.AddMinutes(-3);
+                        foreach (var clientData in _dicByObjectId.Values) {
+                            if (clientData.ModifiedOn > time) {
+                                minerDatas.Add(new MinerData {
+                                    CreatedOn = clientData.CreatedOn,
+                                    GroupId = clientData.GroupId,
+                                    Id = clientData.Id,
+                                    ClientId = clientData.ClientId,
+                                    ClientName = clientData.ClientName,
+                                    MinerIp = clientData.MinerIp,
+                                    MinerName = clientData.MinerName,
+                                    WindowsLoginName = clientData.WindowsLoginName,
+                                    WindowsPassword = clientData.WindowsPassword,
+                                    WorkId = clientData.WorkId
+                                });
+                            }
+                            else {
+                                clientData.IsMining = false;
+                                clientData.MainCoinSpeed = 0;
+                                clientData.DualCoinSpeed = 0;
+                                foreach (var item in clientData.GpuTable) {
+                                    item.MainCoinSpeed = 0;
+                                    item.DualCoinSpeed = 0;
+                                }
+                            }
                         }
+                    }
+                    using (LiteDatabase db = HostRoot.CreateLocalDb()) {
+                        var col = db.GetCollection<MinerData>();
+                        col.Upsert(minerDatas);
                     }
                 });
         }
@@ -48,8 +61,8 @@ namespace NTMiner.Data.Impl {
                 while (true) {
                     DateTime now = DateTime.Now;
                     if (_getSpeedOn.AddSeconds(10) <= now) {
-                        if (HostRoot.Current.HostConfig.IsPull) {
-                            Write.DevLine("周期拉取数据更新拍照源数据");
+                        if (HostRoot.Instance.HostConfig.IsPull) {
+                            Write.DevDebug("周期拉取数据更新拍照源数据");
                             Task.Factory.StartNew(() => {
                                 ClientData[] clientDatas = _dicByObjectId.Values.ToArray();
                                 Task[] tasks = clientDatas.Select(CreatePullTask).ToArray();
@@ -62,7 +75,7 @@ namespace NTMiner.Data.Impl {
                         System.Threading.Thread.Sleep((int)(_getSpeedOn.AddSeconds(10) - now).TotalMilliseconds);
                     }
                 }
-            });
+            }, TaskCreationOptions.LongRunning);
         }
 
         private bool _isInited = false;
@@ -81,7 +94,7 @@ namespace NTMiner.Data.Impl {
                     using (LiteDatabase db = HostRoot.CreateLocalDb()) {
                         var col = db.GetCollection<MinerData>();
                         foreach (var item in col.FindAll()) {
-                            var data = MinerData.CreateClientData(item);
+                            var data = ClientData.CreateClientData(item);
                             _dicByObjectId.Add(item.Id, data);
                             if (!_dicByClientId.ContainsKey(item.ClientId)) {
                                 _dicByClientId.Add(item.ClientId, data);
@@ -95,6 +108,9 @@ namespace NTMiner.Data.Impl {
 
         public void Add(ClientData clientData) {
             InitOnece();
+            if (clientData == null || clientData.Id == null) {
+                return;
+            }
             if (!_dicByObjectId.ContainsKey(clientData.Id)) {
                 _dicByObjectId.Add(clientData.Id, clientData);
             }
@@ -108,6 +124,7 @@ namespace NTMiner.Data.Impl {
             MinerData minerData = new MinerData {
                 Id = ObjectId.NewObjectId().ToString(),
                 ClientId = Guid.NewGuid(),
+                ClientName = string.Empty,
                 CreatedOn = DateTime.Now,
                 GroupId = Guid.Empty,
                 MinerIp = minerIp,
@@ -115,7 +132,7 @@ namespace NTMiner.Data.Impl {
                 WindowsPassword = String.Empty,
                 WorkId = Guid.Empty
             };
-            var clientData = MinerData.CreateClientData(minerData);
+            var clientData = ClientData.CreateClientData(minerData);
             Add(clientData);
             using (LiteDatabase db = HostRoot.CreateLocalDb()) {
                 var col = db.GetCollection<MinerData>();
@@ -124,6 +141,9 @@ namespace NTMiner.Data.Impl {
         }
 
         public void Remove(string objectId) {
+            if (objectId == null) {
+                return;
+            }
             if (_dicByObjectId.TryGetValue(objectId, out ClientData clientData)) {
                 _dicByObjectId.Remove(objectId);
                 _dicByClientId.Remove(clientData.ClientId);
@@ -187,8 +207,8 @@ namespace NTMiner.Data.Impl {
                 query = query.Where(a => a.MinerIp == minerIp);
             }
             if (!string.IsNullOrEmpty(minerName)) {
-                query = query.Where(a => 
-                (!string.IsNullOrEmpty(a.MinerName) && a.MinerName.IndexOf(minerName, StringComparison.OrdinalIgnoreCase) != -1) 
+                query = query.Where(a =>
+                (!string.IsNullOrEmpty(a.MinerName) && a.MinerName.IndexOf(minerName, StringComparison.OrdinalIgnoreCase) != -1)
                 || (!string.IsNullOrEmpty(a.ClientName) && a.ClientName.IndexOf(minerName, StringComparison.OrdinalIgnoreCase) != -1));
             }
             if (mineState != MineStatus.All) {
@@ -207,7 +227,7 @@ namespace NTMiner.Data.Impl {
             }
             total = query.Count();
             miningCount = query.Count(a => a.IsMining);
-            var results = query.OrderBy(a => a.MinerName).Skip((pageIndex - 1) * pageSize).Take(pageSize).ToList();
+            var results = query.OrderBy(a => a.ClientName).Skip((pageIndex - 1) * pageSize).Take(pageSize).ToList();
             DateTime time = DateTime.Now.AddMinutes(-3);
             // 3分钟未上报算力视为0算力
             foreach (var clientData in results) {
@@ -227,17 +247,23 @@ namespace NTMiner.Data.Impl {
 
         public ClientData GetByObjectId(string objectId) {
             InitOnece();
+            if (objectId == null) {
+                return null;
+            }
             _dicByObjectId.TryGetValue(objectId, out ClientData clientData);
             return clientData;
         }
 
         public void UpdateClient(string objectId, string propertyName, object value) {
             InitOnece();
+            if (objectId == null) {
+                return;
+            }
             if (_dicByObjectId.TryGetValue(objectId, out ClientData clientData)) {
                 PropertyInfo propertyInfo = typeof(ClientData).GetProperty(propertyName);
                 if (propertyInfo != null) {
                     if (propertyInfo.PropertyType == typeof(Guid)) {
-                        value = DictionaryExtensions.ConvertToGuid(value);
+                        value = VirtualRoot.ConvertToGuid(value);
                     }
                     propertyInfo.SetValue(clientData, value, null);
                     clientData.ModifiedOn = DateTime.Now;
@@ -251,7 +277,7 @@ namespace NTMiner.Data.Impl {
             if (propertyInfo != null) {
                 if (propertyInfo.PropertyType == typeof(Guid)) {
                     foreach (var kv in values) {
-                        values[kv.Key] = DictionaryExtensions.ConvertToGuid(kv.Value);
+                        values[kv.Key] = VirtualRoot.ConvertToGuid(kv.Value);
                     }
                 }
                 foreach (var kv in values) {
@@ -265,18 +291,15 @@ namespace NTMiner.Data.Impl {
             }
         }
 
-        public Task<SpeedData> CreatePullTask(ClientData clientData) {
+        public Task CreatePullTask(ClientData clientData) {
             return Client.MinerClientService.GetSpeedAsync(clientData.MinerIp, (speedData, exception) => {
                 if (exception != null) {
-                    Exception innerException = exception.GetInnerException();
-                    if (innerException is SocketException || innerException is TaskCanceledException) {
-                        clientData.IsMining = false;
-                        clientData.MainCoinSpeed = 0;
-                        clientData.DualCoinSpeed = 0;
-                        foreach (var item in clientData.GpuTable) {
-                            item.MainCoinSpeed = 0;
-                            item.DualCoinSpeed = 0;
-                        }
+                    clientData.IsMining = false;
+                    clientData.MainCoinSpeed = 0;
+                    clientData.DualCoinSpeed = 0;
+                    foreach (var item in clientData.GpuTable) {
+                        item.MainCoinSpeed = 0;
+                        item.DualCoinSpeed = 0;
                     }
                 }
                 else {

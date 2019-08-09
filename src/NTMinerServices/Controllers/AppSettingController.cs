@@ -5,27 +5,41 @@ using System.Linq;
 using System.Web.Http;
 
 namespace NTMiner.Controllers {
-    public class AppSettingController : ApiController, IAppSettingController {
-        private string ClientIp {
-            get {
-                return Request.GetWebClientIp();
-            }
-        }
-
+    public class AppSettingController : ApiControllerBase, IAppSettingController {
         public DateTime GetTime() {
             return DateTime.Now;
         }
 
         [HttpPost]
+        public string GetJsonFileVersion(AppSettingRequest request) {
+            string jsonVersion = string.Empty;
+            string minerClientVersion = string.Empty;
+            try {
+                var fileData = HostRoot.Instance.NTMinerFileSet.LatestMinerClientFile;
+                minerClientVersion = fileData != null ? fileData.Version : string.Empty;
+                if (!HostRoot.Instance.AppSettingSet.TryGetAppSetting(request.Key, out IAppSetting data) || data.Value == null) {
+                    jsonVersion = string.Empty;
+                }
+                else {
+                    jsonVersion = data.Value.ToString();
+                }
+            }
+            catch (Exception e) {
+                Logger.ErrorDebugLine(e);
+            }
+            return $"{jsonVersion}|{minerClientVersion}";
+        }
+
+        [HttpPost]
         public DataResponse<AppSettingData> AppSetting([FromBody]AppSettingRequest request) {
             try {
-                if (!HostRoot.Current.AppSettingSet.TryGetAppSetting(request.Key, out IAppSetting data)) {
+                if (!HostRoot.Instance.AppSettingSet.TryGetAppSetting(request.Key, out IAppSetting data)) {
                     data = null;
                 }
                 return DataResponse<AppSettingData>.Ok(AppSettingData.Create(data));
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
                 return ResponseBase.ServerError<DataResponse<AppSettingData>>(e.Message);
             }
         }
@@ -33,11 +47,11 @@ namespace NTMiner.Controllers {
         [HttpPost]
         public DataResponse<List<AppSettingData>> AppSettings([FromBody]AppSettingsRequest request) {
             try {
-                var data = HostRoot.Current.AppSettingSet;
+                var data = HostRoot.Instance.AppSettingSet;
                 return DataResponse<List<AppSettingData>>.Ok(data.Select(a => AppSettingData.Create(a)).ToList());
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
                 return ResponseBase.ServerError<DataResponse<List<AppSettingData>>>(e.Message);
             }
         }
@@ -48,15 +62,15 @@ namespace NTMiner.Controllers {
                 return ResponseBase.InvalidInput("参数错误");
             }
             try {
-                if (!request.IsValid(HostRoot.Current.UserSet.GetUser, ClientIp, out ResponseBase response)) {
+                if (!request.IsValid(User, Sign, Timestamp, ClientIp, out ResponseBase response)) {
                     return response;
                 }
-                VirtualRoot.Execute(new ChangeAppSettingCommand(request.Data));
-                Write.DevLine($"{request.Data.Key} {request.Data.Value}");
+                VirtualRoot.Execute(new ChangeLocalAppSettingCommand(request.Data));
+                Logger.InfoDebugLine($"{nameof(SetAppSetting)}({request.Data.Key}, {request.Data.Value})");
                 return ResponseBase.Ok();
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
                 return ResponseBase.ServerError(e.Message);
             }
         }
@@ -67,17 +81,17 @@ namespace NTMiner.Controllers {
                 return ResponseBase.InvalidInput("参数错误");
             }
             try {
-                if (!request.IsValid(HostRoot.Current.UserSet.GetUser, ClientIp, out ResponseBase response)) {
+                if (!request.IsValid(User, Sign, Timestamp, ClientIp, out ResponseBase response)) {
                     return response;
                 }
                 foreach (var item in request.Data) {
-                    VirtualRoot.Execute(new ChangeAppSettingCommand(item));
-                    Write.DevLine($"{item.Key} {item.Value}");
+                    VirtualRoot.Execute(new ChangeLocalAppSettingCommand(item));
                 }
+                Logger.InfoDebugLine($"{nameof(SetAppSettings)} {string.Join(",", request.Data.Select(a => $"{a.Key}:{a.Value}"))}");
                 return ResponseBase.Ok();
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
                 return ResponseBase.ServerError(e.Message);
             }
         }

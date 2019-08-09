@@ -12,7 +12,7 @@ namespace NTMiner.Core.Kernels.Impl {
         public CoinKernelSet(INTMinerRoot root, bool isUseJson) {
             _root = root;
             _isUseJson = isUseJson;
-            VirtualRoot.Window<AddCoinKernelCommand>("添加币种内核", LogEnum.DevConsole,
+            _root.ServerContextWindow<AddCoinKernelCommand>("添加币种内核", LogEnum.DevConsole,
                 action: (message) => {
                     InitOnece();
                     if (message == null || message.Input == null || message.Input.GetId() == Guid.Empty) {
@@ -42,15 +42,14 @@ namespace NTMiner.Core.Kernels.Impl {
                             var poolKernel = new PoolKernelData() {
                                 Id = poolKernelId,
                                 Args = string.Empty,
-                                Description = string.Empty,
                                 KernelId = message.Input.KernelId,
                                 PoolId = pool.GetId()
                             };
                             VirtualRoot.Execute(new AddPoolKernelCommand(poolKernel));
                         }
                     }
-                }).AddToCollection(root.ContextHandlers);
-            VirtualRoot.Window<UpdateCoinKernelCommand>("更新币种内核", LogEnum.DevConsole,
+                });
+            _root.ServerContextWindow<UpdateCoinKernelCommand>("更新币种内核", LogEnum.DevConsole,
                 action: (message) => {
                     InitOnece();
                     if (message == null || message.Input == null || message.Input.GetId() == Guid.Empty) {
@@ -71,8 +70,8 @@ namespace NTMiner.Core.Kernels.Impl {
                     repository.Update(entity);
 
                     VirtualRoot.Happened(new CoinKernelUpdatedEvent(entity));
-                }).AddToCollection(root.ContextHandlers);
-            VirtualRoot.Window<RemoveCoinKernelCommand>("移除币种内核", LogEnum.DevConsole,
+                });
+            _root.ServerContextWindow<RemoveCoinKernelCommand>("移除币种内核", LogEnum.DevConsole,
                 action: (message) => {
                     InitOnece();
                     if (message == null || message.EntityId == Guid.Empty) {
@@ -100,7 +99,27 @@ namespace NTMiner.Core.Kernels.Impl {
                             VirtualRoot.Execute(new RemovePoolKernelCommand(poolKernelId));
                         }
                     }
-                }).AddToCollection(root.ContextHandlers);
+                });
+            _root.ServerContextOn<FileWriterRemovedEvent>("移除文件书写器后移除引用关系", LogEnum.DevConsole,
+                action: message => {
+                    var repository = NTMinerRoot.CreateServerRepository<CoinKernelData>(isUseJson);
+                    var entities = _dicById.Values.Where(a => a.FileWriterIds.Contains(message.Source.GetId())).ToArray();
+                    foreach (var entity in entities) {
+                        entity.FileWriterIds = new List<Guid>(entity.FileWriterIds.Where(a => a != message.Source.GetId()));
+                        repository.Update(entity);
+                        VirtualRoot.Happened(new CoinKernelUpdatedEvent(entity));
+                    }
+                });
+            _root.ServerContextOn<FragmentWriterRemovedEvent>("移除命令行片段书写器后移除引用关系", LogEnum.DevConsole,
+                action: message => {
+                    var repository = NTMinerRoot.CreateServerRepository<CoinKernelData>(isUseJson);
+                    var entities = _dicById.Values.Where(a => a.FragmentWriterIds.Contains(message.Source.GetId())).ToArray();
+                    foreach (var entity in entities) {
+                        entity.FragmentWriterIds = new List<Guid>(entity.FragmentWriterIds.Where(a => a != message.Source.GetId()));
+                        repository.Update(entity);
+                        VirtualRoot.Happened(new CoinKernelUpdatedEvent(entity));
+                    }
+                });
         }
 
         private bool _isInited = false;

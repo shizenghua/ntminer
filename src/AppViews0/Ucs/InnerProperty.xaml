@@ -1,0 +1,171 @@
+﻿<UserControl x:Class="NTMiner.Views.Ucs.InnerProperty"
+		xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+		xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+		xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+		xmlns:sys="clr-namespace:System;assembly=mscorlib"
+		xmlns:controls="clr-namespace:NTMiner.Controls;assembly=NTMinerWpf"
+		xmlns:uc="clr-namespace:NTMiner.Views.Ucs"
+		xmlns:local="clr-namespace:NTMiner.Views.Ucs"
+		xmlns:vm="clr-namespace:NTMiner.Vms;assembly=AppModels"
+		xmlns:app="clr-namespace:NTMiner;assembly=AppModels"
+		Background="White"
+		mc:Ignorable="d" d:DesignWidth="600">
+	<UserControl.DataContext>
+		<vm:InnerPropertyViewModel></vm:InnerPropertyViewModel>
+	</UserControl.DataContext>
+	<UserControl.Resources>
+        <sys:Double x:Key="LblWidth">160</sys:Double>
+		<Style x:Key="LblTb" TargetType="TextBlock" BasedOn="{StaticResource LblTbBase}">
+			<Setter Property="Width" Value="{StaticResource LblWidth}"></Setter>
+            <Setter Property="Padding" Value="10 4"></Setter>
+            <Setter Property="Padding" Value="10 4"></Setter>
+        </Style>
+        <Style x:Key="LblBtn" TargetType="Button">
+            <Setter Property="Padding" Value="10 4"></Setter>
+            <Setter Property="Cursor" Value="Hand"></Setter>
+            <Setter Property="HorizontalAlignment" Value="Right"></Setter>
+            <Setter Property="Foreground" Value="{StaticResource LableColor}"></Setter>
+            <Setter Property="BorderThickness" Value="0"></Setter>
+            <Setter Property="Background" Value="Transparent"></Setter>
+            <Setter Property="Foreground" Value="{StaticResource ThemeBackground}"></Setter>
+            <Setter Property="VerticalAlignment" Value="Center"></Setter>
+        </Style>
+        <Style TargetType="TextBlock">
+			<Setter Property="VerticalAlignment" Value="Center"></Setter>
+		</Style>
+    </UserControl.Resources>
+    <ScrollViewer 
+		VerticalScrollBarVisibility="Auto" 
+        HorizontalScrollBarVisibility="Auto"
+		PreviewMouseDown="ScrollViewer_PreviewMouseDown">
+        <StackPanel>
+            <WrapPanel>
+                <TextBlock Style="{StaticResource LblTb}" Text="程序名"></TextBlock>
+                <TextBlock Text="{x:Static app:AppStatic.AppName}"></TextBlock>
+            </WrapPanel>
+
+            <WrapPanel>
+                <TextBlock Style="{StaticResource LblTb}" Text="矿机标识"></TextBlock>
+                <TextBox Text="{Binding Id,Mode=OneWay}" VerticalAlignment="Center" BorderThickness="0" IsReadOnly="True"></TextBox>
+            </WrapPanel>
+
+            <WrapPanel>
+                <TextBlock Style="{StaticResource LblTb}" Text="运行时"></TextBlock>
+                <TextBlock Text="{Binding AppRuntime}"></TextBlock>
+            </WrapPanel>
+
+            <WrapPanel>
+                <TextBlock Style="{StaticResource LblTb}" Text="启动时间"></TextBlock>
+                <TextBlock Text="{Binding BootOn}"></TextBlock>
+            </WrapPanel>
+
+            <WrapPanel>
+                <Border Width="{StaticResource LblWidth}">
+                    <Button 
+                        Style="{StaticResource LblBtn}" 
+                        Content="打开本地目录" 
+                        Command="{x:Static app:AppStatic.OpenDir}" 
+                        CommandParameter="{Binding LocalDir}">
+                    </Button>
+                </Border>
+                <TextBlock Text="{Binding LocalDir}"></TextBlock>
+            </WrapPanel>
+
+            <WrapPanel Visibility="{x:Static app:AppStatic.IsDevModeVisible}">
+                <TextBlock Style="{StaticResource LblTb}" Text="服务端数据库名"></TextBlock>
+                <TextBlock Text="{Binding ServerDbFileFullName}"></TextBlock>
+            </WrapPanel>
+
+            <WrapPanel>
+                <TextBlock Style="{StaticResource LblTb}" Text="服务端配置文件名"></TextBlock>
+                <TextBlock Text="{Binding ServerJsonFileFullName}"></TextBlock>
+            </WrapPanel>
+
+            <WrapPanel>
+                <TextBlock Style="{StaticResource LblTb}" Text="服务端导出文件名"></TextBlock>
+                <TextBlock Text="{Binding ServerVersionJsonFileFullName}"></TextBlock>
+            </WrapPanel>
+
+            <WrapPanel>
+                <TextBlock Style="{StaticResource LblTb}" Text="本地数据库文件名"></TextBlock>
+                <TextBlock Text="{Binding LocalDbFileFullName}"></TextBlock>
+            </WrapPanel>
+
+            <WrapPanel Visibility="{x:Static app:AppStatic.IsDevModeVisible}">
+                <TextBlock Style="{StaticResource LblTb}" Text="守护程序文件名"></TextBlock>
+                <TextBlock Text="{Binding DaemonFileFullName}"></TextBlock>
+            </WrapPanel>
+
+            <WrapPanel Visibility="{x:Static app:AppStatic.IsDevModeVisible}">
+                <TextBlock Style="{StaticResource LblTb}" Text="开发者工具程序文件名"></TextBlock>
+                <TextBlock Text="{Binding DevConsoleFileFullName}"></TextBlock>
+            </WrapPanel>
+
+            <WrapPanel>
+                <TextBlock Style="{StaticResource LblTb}" Text="超频程序文件名"></TextBlock>
+                <TextBlock Text="{Binding NTMinerOverClockFileFullName}"></TextBlock>
+            </WrapPanel>
+
+            <WrapPanel>
+                <Border Width="{StaticResource LblWidth}">
+                    <Button 
+                        Style="{StaticResource LblBtn}" 
+                        Content="打开临时目录" 
+                        Command="{x:Static app:AppStatic.OpenDir}" 
+                        CommandParameter="{Binding TempDirFullName}">
+                    </Button>
+                </Border>
+                <TextBlock Text="{Binding TempDirFullName}"></TextBlock>
+            </WrapPanel>
+
+            <WrapPanel>
+                <Border Width="{StaticResource LblWidth}">
+                    <Button 
+                        Style="{StaticResource LblBtn}" 
+                        Content="打开内核包目录" 
+                        Command="{x:Static app:AppStatic.OpenDir}" 
+                        CommandParameter="{Binding PackagesDirFullName}">
+                    </Button>
+                </Border>
+                <TextBlock Text="{Binding PackagesDirFullName}"></TextBlock>
+            </WrapPanel>
+
+            <WrapPanel>
+                <Border Width="{StaticResource LblWidth}">
+                    <Button 
+                        Style="{StaticResource LblBtn}" 
+                        Content="打开下载目录" 
+                        Command="{x:Static app:AppStatic.OpenDir}" 
+                        CommandParameter="{Binding DownloadDirFullName}">
+                    </Button>
+                </Border>
+                <TextBlock Text="{Binding DownloadDirFullName}"></TextBlock>
+            </WrapPanel>
+
+            <WrapPanel>
+                <Border Width="{StaticResource LblWidth}">
+                    <Button 
+                        Style="{StaticResource LblBtn}" 
+                        Content="打开内核解压目录" 
+                        Command="{x:Static app:AppStatic.OpenDir}" 
+                        CommandParameter="{Binding KernelsDirFullName}">
+                    </Button>
+                </Border>
+                <TextBlock Text="{Binding KernelsDirFullName}"></TextBlock>
+            </WrapPanel>
+
+            <WrapPanel>
+                <Border Width="{StaticResource LblWidth}">
+                    <Button 
+                        Style="{StaticResource LblBtn}" 
+                        Content="打开日志目录" 
+                        Command="{x:Static app:AppStatic.OpenDir}" 
+                        CommandParameter="{Binding LogsDirFullName}">
+                    </Button>
+                </Border>
+                <TextBlock Text="{Binding LogsDirFullName}"></TextBlock>
+            </WrapPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

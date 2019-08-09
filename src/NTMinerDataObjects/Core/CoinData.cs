@@ -7,11 +7,16 @@ namespace NTMiner.Core {
             Code = string.Empty,
             EnName = string.Empty,
             CnName = string.Empty,
+            Icon = string.Empty,
+            AlgoId = Guid.Empty,
             Algo = string.Empty,
             SortNumber = 0,
             TestWallet = string.Empty,
             WalletRegexPattern = string.Empty,
-            JustAsDualCoin = false
+            JustAsDualCoin = false,
+            Notice = string.Empty,
+            TutorialUrl = string.Empty,
+            IsHot = false
         };
 
         public CoinData() {
@@ -29,6 +34,10 @@ namespace NTMiner.Core {
 
         public string CnName { get; set; }
 
+        public string Icon { get; set; }
+
+        public Guid AlgoId { get; set; }
+
         public string Algo { get; set; }
 
         public int SortNumber { get; set; }
@@ -38,5 +47,10 @@ namespace NTMiner.Core {
         public string WalletRegexPattern { get; set; }
 
         public bool JustAsDualCoin { get; set; }
+
+        public string Notice { get; set; }
+        public string TutorialUrl { get; set; }
+
+        public bool IsHot { get; set; }
     }
 }

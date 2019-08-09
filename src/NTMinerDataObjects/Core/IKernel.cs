@@ -7,11 +7,9 @@ namespace NTMiner.Core {
         string Version { get; }
         ulong PublishOn { get; }
         string Package { get; }
-        string Sha1 { get; }
         long Size { get; }
         PublishStatus PublishState { get; }
 
-        string HelpArg { get; set; }
         string Notice { get; }
         Guid KernelInputId { get; }
         Guid KernelOutputId { get; }

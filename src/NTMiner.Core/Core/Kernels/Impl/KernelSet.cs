@@ -13,14 +13,14 @@ namespace NTMiner.Core.Kernels.Impl {
         public KernelSet(INTMinerRoot root, bool isUseJson) {
             _root = root;
             _isUseJson = isUseJson;
-            VirtualRoot.Window<AddKernelCommand>("添加内核", LogEnum.DevConsole,
+            _root.ServerContextWindow<AddKernelCommand>("添加内核", LogEnum.DevConsole,
                 action: message => {
                     InitOnece();
                     if (message == null || message.Input == null || message.Input.GetId() == Guid.Empty) {
                         throw new ArgumentNullException();
                     }
                     if (string.IsNullOrEmpty(message.Input.Code)) {
-                        throw new ValidationException("package code can't be null or empty");
+                        throw new ValidationException($"{nameof(message.Input.Code)} can't be null or empty");
                     }
                     if (_dicById.ContainsKey(message.Input.GetId())) {
                         return;
@@ -31,15 +31,15 @@ namespace NTMiner.Core.Kernels.Impl {
                     repository.Add(entity);
 
                     VirtualRoot.Happened(new KernelAddedEvent(entity));
-                }).AddToCollection(root.ContextHandlers);
-            VirtualRoot.Window<UpdateKernelCommand>("更新内核", LogEnum.DevConsole,
+                });
+            _root.ServerContextWindow<UpdateKernelCommand>("更新内核", LogEnum.DevConsole,
                 action: message => {
                     InitOnece();
                     if (message == null || message.Input == null || message.Input.GetId() == Guid.Empty) {
                         throw new ArgumentNullException();
                     }
                     if (string.IsNullOrEmpty(message.Input.Code)) {
-                        throw new ValidationException("package code can't be null or empty");
+                        throw new ValidationException($"{nameof(message.Input.Code)} can't be null or empty");
                     }
                     if (!_dicById.ContainsKey(message.Input.GetId())) {
                         return;
@@ -53,8 +53,8 @@ namespace NTMiner.Core.Kernels.Impl {
                     repository.Update(entity);
 
                     VirtualRoot.Happened(new KernelUpdatedEvent(entity));
-                }).AddToCollection(root.ContextHandlers);
-            VirtualRoot.Window<RemoveKernelCommand>("移除内核", LogEnum.DevConsole,
+                });
+            _root.ServerContextWindow<RemoveKernelCommand>("移除内核", LogEnum.DevConsole,
                 action: message => {
                     InitOnece();
                     if (message == null || message.EntityId == Guid.Empty) {
@@ -73,7 +73,7 @@ namespace NTMiner.Core.Kernels.Impl {
                     repository.Remove(entity.Id);
 
                     VirtualRoot.Happened(new KernelRemovedEvent(entity));
-                }).AddToCollection(root.ContextHandlers);
+                });
         }
 
         private bool _isInited = false;
@@ -107,15 +107,15 @@ namespace NTMiner.Core.Kernels.Impl {
             }
         }
 
-        public bool Contains(Guid packageId) {
+        public bool Contains(Guid kernelId) {
             InitOnece();
-            return _dicById.ContainsKey(packageId);
+            return _dicById.ContainsKey(kernelId);
         }
 
-        public bool TryGetKernel(Guid packageId, out IKernel package) {
+        public bool TryGetKernel(Guid kernelId, out IKernel package) {
             InitOnece();
             KernelData pkg;
-            var r = _dicById.TryGetValue(packageId, out pkg);
+            var r = _dicById.TryGetValue(kernelId, out pkg);
             package = pkg;
             return r;
         }

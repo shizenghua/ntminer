@@ -8,11 +8,7 @@ using System.Linq;
 namespace NTMiner {
     public static class Report {
         public static void Init(INTMinerRoot root) {
-            if (Design.IsInDesignMode) {
-                return;
-            }
-
-            VirtualRoot.On<HasBoot5SecondEvent>("登录服务器并报告一次0算力", LogEnum.DevConsole,
+            VirtualRoot.On<HasBoot10SecondEvent>("登录服务器并报告一次0算力", LogEnum.DevConsole,
                 action: message => {
                     // 报告0算力从而告知服务器该客户端当前在线的币种
                     ReportSpeed();
@@ -30,29 +26,26 @@ namespace NTMiner {
 
             VirtualRoot.On<MineStopedEvent>("停止挖矿后报告状态", LogEnum.DevConsole,
                 action: message => {
-                    try {
-                        Server.ReportService.ReportStateAsync(AssemblyInfo.OfficialServerHost, ClientId.Id, isMining: false);
-                    }
-                    catch (Exception e) {
-                        Logger.ErrorDebugLine(e.Message, e);
-                    }
+                    Server.ReportService.ReportStateAsync(AssemblyInfo.OfficialServerHost, VirtualRoot.Id, isMining: false);
                 });
         }
 
         private static ICoin _sLastSpeedMainCoin;
         private static ICoin _sLastSpeedDualCoin;
         public static SpeedData CreateSpeedData() {
-            INTMinerRoot root = NTMinerRoot.Current;
+            INTMinerRoot root = NTMinerRoot.Instance;
             SpeedData data = new SpeedData {
+                KernelSelfRestartCount = 0,
                 IsAutoBoot = NTMinerRegistry.GetIsAutoBoot(),
                 IsAutoStart = NTMinerRegistry.GetIsAutoStart(),
                 Version = NTMinerRoot.CurrentVersion.ToString(4),
                 BootOn = root.CreatedOn,
                 MineStartedOn = null,
                 IsMining = root.IsMining,
+                MineWorkId = root.MinerProfile.MineWork != null ? root.MinerProfile.MineWork.GetId() : Guid.Empty,
                 MinerName = root.MinerProfile.MinerName,
                 GpuInfo = root.GpuSetInfo,
-                ClientId = ClientId.Id,
+                ClientId = VirtualRoot.Id,
                 MainCoinCode = string.Empty,
                 MainCoinWallet = string.Empty,
                 MainCoinTotalShare = 0,
@@ -67,14 +60,16 @@ namespace NTMiner {
                 IsDualCoinEnabled = false,
                 Kernel = string.Empty,
                 MainCoinPool = string.Empty,
-                OSName = Windows.OS.Current.WindowsEdition,
-                GpuDriver = root.GpuSet.GetProperty("DriverVersion"),
+                OSName = Windows.OS.Instance.WindowsEdition,
+                GpuDriver = root.GpuSet.DriverVersion,
                 GpuType = root.GpuSet.GpuType,
                 OSVirtualMemoryMb = NTMinerRoot.OSVirtualMemoryMb,
                 KernelCommandLine = NTMinerRoot.UserKernelCommandLine,
                 DiskSpace = NTMinerRoot.DiskSpace,
                 IsAutoRestartKernel = root.MinerProfile.IsAutoRestartKernel,
                 IsNoShareRestartKernel = root.MinerProfile.IsNoShareRestartKernel,
+                IsNoShareRestartComputer = root.MinerProfile.IsNoShareRestartComputer,
+                NoShareRestartComputerMinutes = root.MinerProfile.NoShareRestartComputerMinutes,
                 IsPeriodicRestartComputer = root.MinerProfile.IsPeriodicRestartComputer,
                 IsPeriodicRestartKernel = root.MinerProfile.IsPeriodicRestartKernel,
                 NoShareRestartKernelMinutes = root.MinerProfile.NoShareRestartKernelMinutes,
@@ -83,15 +78,17 @@ namespace NTMiner {
                 GpuTable = root.GpusSpeed.Where(a => a.Gpu.Index != NTMinerRoot.GpuAllId).Select(a => new GpuSpeedData {
                     Index = a.Gpu.Index,
                     Name = a.Gpu.Name,
+                    TotalMemory = a.Gpu.TotalMemory,
                     MainCoinSpeed = a.MainCoinSpeed.Value,
                     DualCoinSpeed = a.DualCoinSpeed.Value,
                     FanSpeed = a.Gpu.FanSpeed,
                     Temperature = a.Gpu.Temperature,
                     PowerUsage = a.Gpu.PowerUsage,
                     Cool = a.Gpu.Cool,
-                    Power = a.Gpu.Power,
+                    PowerCapacity = a.Gpu.PowerCapacity,
                     CoreClockDelta = a.Gpu.CoreClockDelta,
-                    MemoryClockDelta = a.Gpu.MemoryClockDelta
+                    MemoryClockDelta = a.Gpu.MemoryClockDelta,
+                    TempLimit = a.Gpu.TempLimit
                 }).ToArray()
             };
             #region 当前选中的币种是什么
@@ -139,6 +136,7 @@ namespace NTMiner {
             if (root.IsMining) {
                 var mineContext = root.CurrentMineContext;
                 if (mineContext != null) {
+                    data.KernelSelfRestartCount = mineContext.KernelSelfRestartCount;
                     data.MineStartedOn = mineContext.CreatedOn;
                     data.KernelCommandLine = mineContext.CommandLine;
                 }
@@ -146,7 +144,7 @@ namespace NTMiner {
                 if (_sLastSpeedMainCoin == null || _sLastSpeedMainCoin == root.CurrentMineContext.MainCoin) {
                     _sLastSpeedMainCoin = root.CurrentMineContext.MainCoin;
                     Guid coinId = root.CurrentMineContext.MainCoin.GetId();
-                    IGpusSpeed gpuSpeeds = NTMinerRoot.Current.GpusSpeed;
+                    IGpusSpeed gpuSpeeds = NTMinerRoot.Instance.GpusSpeed;
                     IGpuSpeed totalSpeed = gpuSpeeds.CurrentSpeed(NTMinerRoot.GpuAllId);
                     data.MainCoinSpeed = totalSpeed.MainCoinSpeed.Value;
                     ICoinShare share = root.CoinShareSet.GetOrCreate(coinId);
@@ -161,7 +159,7 @@ namespace NTMiner {
                     if (_sLastSpeedDualCoin == null || _sLastSpeedDualCoin == dualMineContext.DualCoin) {
                         _sLastSpeedDualCoin = dualMineContext.DualCoin;
                         Guid coinId = dualMineContext.DualCoin.GetId();
-                        IGpusSpeed gpuSpeeds = NTMinerRoot.Current.GpusSpeed;
+                        IGpusSpeed gpuSpeeds = NTMinerRoot.Instance.GpusSpeed;
                         IGpuSpeed totalSpeed = gpuSpeeds.CurrentSpeed(NTMinerRoot.GpuAllId);
                         data.DualCoinSpeed = totalSpeed.DualCoinSpeed.Value;
                         ICoinShare share = root.CoinShareSet.GetOrCreate(coinId);
@@ -182,7 +180,7 @@ namespace NTMiner {
                 Server.ReportService.ReportSpeedAsync(AssemblyInfo.OfficialServerHost, data);
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
             }
         }
     }

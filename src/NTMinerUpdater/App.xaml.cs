@@ -24,10 +24,13 @@ namespace NTMiner {
         public static readonly bool IsInDesignMode = (bool)DesignerProperties.IsInDesignModeProperty.GetMetadata(typeof(DependencyObject)).DefaultValue;
 
         static App() {
+            if (!Debugger.IsAttached && !Design.IsInDesignMode) {
+                Write.Init();
+            }
             AppType = Environment.CommandLine.IndexOf("--minerstudio", StringComparison.OrdinalIgnoreCase) != -1 ? NTMinerAppType.MinerStudio : NTMinerAppType.MinerClient;
             // 读取注册表中的Location的时候会根据VirtualRoot.IsMinerStudio而变化所以需要赋值
             if (AppType == NTMinerAppType.MinerStudio) {
-                VirtualRoot.IsMinerStudio = true;
+                VirtualRoot.SetIsMinerStudio(true);
             }
         }
 
@@ -35,8 +38,7 @@ namespace NTMiner {
 
         public App() {
             AppDomain.CurrentDomain.UnhandledException += (object sender, UnhandledExceptionEventArgs e) => {
-                var exception = e.ExceptionObject as Exception;
-                if (exception != null) {
+                if (e.ExceptionObject is Exception exception) {
                     Handle(exception);
                 }
             };
@@ -47,6 +49,7 @@ namespace NTMiner {
             };
 
             UIThread.InitializeWithDispatcher();
+            UIThread.StartTimer();
             Thread.CurrentThread.CurrentUICulture = new System.Globalization.CultureInfo("zh-CN");
             InitializeComponent();
         }

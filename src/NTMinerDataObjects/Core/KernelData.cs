@@ -21,13 +21,9 @@ namespace NTMiner.Core {
 
         public string Package { get; set; }
 
-        public string Sha1 { get; set; }
-
         public long Size { get; set; }
 
         public PublishStatus PublishState { get; set; }
-
-        public string HelpArg { get; set; }
 
         public string Notice { get; set; }
 

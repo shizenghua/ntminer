@@ -16,20 +16,17 @@ namespace NTMiner {
         public static void WarnDebugLine(object message) {
             s_logger.WarnDebugLine(message);
         }
-        public static void WarnDebugLine(object message, Exception exception) {
-            s_logger.WarnDebugLine(message, exception);
-        }
         public static void ErrorDebugLine(object message) {
             s_logger.ErrorDebugLine(message);
         }
+        public static void ErrorDebugLine(Exception exception) {
+            if (exception == null) {
+                return;
+            }
+            ErrorDebugLine(exception.GetInnerMessage(), exception);
+        }
         public static void ErrorDebugLine(object message, Exception exception) {
             s_logger.ErrorDebugLine(message, exception);
-        }
-        public static void FatalDebugLine(object message) {
-            s_logger.FatalDebugLine(message);
-        }
-        public static void FatalDebugLine(object message, Exception exception) {
-            s_logger.FatalDebugLine(message, exception);
         }
 
         public static void OkWriteLine(object message) {
@@ -37,6 +34,9 @@ namespace NTMiner {
         }
         public static void WarnWriteLine(object message) {
             s_logger.WarnWriteLine(message);
+        }
+        public static void EventWriteLine(object message) {
+            s_logger.EventWriteLine(message);
         }
         public static void ErrorWriteLine(object message) {
             s_logger.ErrorWriteLine(message);

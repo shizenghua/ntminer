@@ -48,6 +48,7 @@
     <Reference Include="PresentationFramework" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Web" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Ip\IIpSet.cs" />
@@ -55,6 +56,8 @@
     <Compile Include="UnitTest1.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="IPTests.cs" />
+    <Compile Include="MarshalTests.cs" />
+    <Compile Include="JsonTests.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -76,6 +79,10 @@
     <ProjectReference Include="..\NTMinerRpcClient\NTMinerRpcClient.csproj">
       <Project>{c7108d8f-eb73-4ae3-916f-be817ede37af}</Project>
       <Name>NTMinerRpcClient</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\NTMinerWpf\NTMinerWpf.csproj">
+      <Project>{dd8e010e-d5e9-47cf-9cb4-8dc6e13d483d}</Project>
+      <Name>NTMinerWpf</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VSToolsPath)\TeamTest\Microsoft.TestTools.targets" Condition="Exists('$(VSToolsPath)\TeamTest\Microsoft.TestTools.targets')" />

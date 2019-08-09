@@ -66,10 +66,10 @@ namespace NTMiner.Core.Profiles {
                 _poolProfileSet.Refresh(mineWorkData);
             }
             if (_walletSet == null) {
-                _walletSet = new WalletSet(root);
+                _walletSet = new WalletSet(root, mineWorkData);
             }
             else {
-                _walletSet.Refresh();
+                _walletSet.Refresh(mineWorkData);
             }
         }
         #endregion
@@ -80,18 +80,9 @@ namespace NTMiner.Core.Profiles {
         }
 
         public void SetCoinKernelProfileProperty(Guid coinKernelId, string propertyName, object value) {
-            string coinCode = "意外的币种";
-            string kernelName = "意外的内核";
             if (_root.CoinKernelSet.TryGetCoinKernel(coinKernelId, out ICoinKernel coinKernel)) {
-                if (_root.CoinSet.TryGetCoin(coinKernel.CoinId, out ICoin coin)) {
-                    coinCode = coin.Code;
-                }
-                if (_root.KernelSet.TryGetKernel(coinKernel.KernelId, out IKernel kernel)) {
-                    kernelName = kernel.GetFullName();
-                }
                 _coinKernelProfileSet.SetCoinKernelProfileProperty(coinKernelId, propertyName, value);
             }
-            Write.DevLine($"SetCoinKernelProfileProperty({coinCode}, {kernelName}, {propertyName}, {value})");
         }
 
         public ICoinProfile GetCoinProfile(Guid coinId) {
@@ -99,12 +90,9 @@ namespace NTMiner.Core.Profiles {
         }
 
         public void SetCoinProfileProperty(Guid coinId, string propertyName, object value) {
-            string coinCode = "意外的币种";
-            if (_root.CoinSet.TryGetCoin(coinId, out ICoin coin)) {
+            if (_root.CoinSet.TryGetCoin(coinId, out ICoin _)) {
                 _coinProfileSet.SetCoinProfileProperty(coinId, propertyName, value);
-                coinCode = coin.Code;
             }
-            Write.DevLine($"SetCoinProfileProperty({coinCode}, {propertyName}, {value})");
         }
 
         public IPoolProfile GetPoolProfile(Guid poolId) {
@@ -112,16 +100,13 @@ namespace NTMiner.Core.Profiles {
         }
 
         public void SetPoolProfileProperty(Guid poolId, string propertyName, object value) {
-            string poolName = "意外的矿池";
             if (_root.PoolSet.TryGetPool(poolId, out IPool pool)) {
-                poolName = pool.Name;
                 if (!pool.IsUserMode) {
-                    Write.DevLine("不是用户名密码模式矿池", ConsoleColor.Green);
+                    Write.UserError($"{pool.Name}不是用户名密码模式的矿池");
                     return;
                 }
                 _poolProfileSet.SetPoolProfileProperty(poolId, propertyName, value);
             }
-            Write.DevLine($"SetPoolProfileProperty({poolName}, {propertyName}, {value})");
         }
 
         public bool TryGetWallet(Guid walletId, out IWallet wallet) {
@@ -186,34 +171,79 @@ namespace NTMiner.Core.Profiles {
                 _data.IsNoShareRestartKernel = value;
             }
         }
+
+        public int AutoRestartKernelTimes {
+            get {
+                if (_data.AutoRestartKernelTimes < 3) {
+                    return 3;
+                }
+                return _data.AutoRestartKernelTimes;
+            }
+            private set {
+                _data.AutoRestartKernelTimes = value;
+            }
+        }
+
         public int NoShareRestartKernelMinutes {
             get => _data.NoShareRestartKernelMinutes;
             private set {
                 _data.NoShareRestartKernelMinutes = value;
             }
         }
+
+        public bool IsNoShareRestartComputer {
+            get => _data.IsNoShareRestartComputer;
+            private set {
+                _data.IsNoShareRestartComputer = value;
+            }
+        }
+
+        public int NoShareRestartComputerMinutes {
+            get => _data.NoShareRestartComputerMinutes;
+            private set {
+                _data.NoShareRestartComputerMinutes = value;
+            }
+        }
+
         public bool IsPeriodicRestartKernel {
             get => _data.IsPeriodicRestartKernel;
             private set {
                 _data.IsPeriodicRestartKernel = value;
             }
         }
+
         public int PeriodicRestartKernelHours {
             get => _data.PeriodicRestartKernelHours;
             private set {
                 _data.PeriodicRestartKernelHours = value;
             }
         }
+
         public bool IsPeriodicRestartComputer {
             get => _data.IsPeriodicRestartComputer;
             private set {
                 _data.IsPeriodicRestartComputer = value;
             }
         }
+
         public int PeriodicRestartComputerHours {
             get => _data.PeriodicRestartComputerHours;
             private set {
                 _data.PeriodicRestartComputerHours = value;
+            }
+        }
+
+        public int PeriodicRestartKernelMinutes {
+            get => _data.PeriodicRestartKernelMinutes;
+            private set {
+                _data.PeriodicRestartKernelMinutes = value;
+            }
+        }
+
+        public int PeriodicRestartComputerMinutes {
+            get => _data.PeriodicRestartComputerMinutes;
+            private set {
+                _data.PeriodicRestartComputerMinutes = value;
             }
         }
 
@@ -226,10 +256,90 @@ namespace NTMiner.Core.Profiles {
             }
         }
 
+        public bool IsSpeedDownRestartComputer {
+            get {
+                return _data.IsSpeedDownRestartComputer;
+            }
+            private set {
+                _data.IsSpeedDownRestartComputer = value;
+            }
+        }
+
+        public int RestartComputerSpeedDownPercent {
+            get {
+                return _data.RestartComputerSpeedDownPercent;
+            }
+            private set {
+                _data.RestartComputerSpeedDownPercent = value;
+            }
+        }
+
+        public bool IsEChargeEnabled {
+            get {
+                return _data.IsEChargeEnabled;
+            }
+            private set {
+                _data.IsEChargeEnabled = value;
+            }
+        }
+
+        public double EPrice {
+            get {
+                return _data.EPrice;
+            }
+            private set {
+                if (_data.EPrice != value) {
+                    _data.EPrice = value;
+                    VirtualRoot.Happened(new EPriceChangedEvent());
+                }
+            }
+        }
+
+        public bool IsPowerAppend {
+            get {
+                return _data.IsPowerAppend;
+            }
+            private set {
+                if (_data.IsPowerAppend != value) {
+                    _data.IsPowerAppend = value;
+                    VirtualRoot.Happened(new PowerAppendChangedEvent());
+                }
+            }
+        }
+
+        public int PowerAppend {
+            get {
+                return _data.PowerAppend;
+            }
+            private set {
+                if (_data.PowerAppend != value) {
+                    _data.PowerAppend = value;
+                    VirtualRoot.Happened(new PowerAppendChangedEvent());
+                }
+            }
+        }
+
         public Guid CoinId {
             get => _data.CoinId;
             private set {
                 _data.CoinId = value;
+            }
+        }
+
+        public int MaxTemp {
+            get => _data.MaxTemp;
+            private set {
+                if (_data.MaxTemp != value) {
+                    _data.MaxTemp = value;
+                    VirtualRoot.Happened(new MaxTempChangedEvent());
+                }
+            }
+        }
+
+        public int AutoStartDelaySeconds {
+            get => _data.AutoStartDelaySeconds;
+            private set {
+                _data.AutoStartDelaySeconds = value;
             }
         }
         #endregion
@@ -261,7 +371,7 @@ namespace NTMiner.Core.Profiles {
             if (Properties.TryGetValue(propertyName, out PropertyInfo propertyInfo)) {
                 if (propertyInfo.CanWrite) {
                     if (propertyInfo.PropertyType == typeof(Guid)) {
-                        value = DictionaryExtensions.ConvertToGuid(value);
+                        value = VirtualRoot.ConvertToGuid(value);
                     }
                     object oldValue = propertyInfo.GetValue(this, null);
                     if (oldValue != value) {
@@ -269,7 +379,6 @@ namespace NTMiner.Core.Profiles {
                         IRepository<MinerProfileData> repository = NTMinerRoot.CreateLocalRepository<MinerProfileData>(isUseJson);
                         repository.Update(_data);
                         VirtualRoot.Happened(new MinerProfilePropertyChangedEvent(propertyName));
-                        Write.DevLine($"SetMinerProfileProperty({propertyName}, {value})");
                     }
                 }
             }

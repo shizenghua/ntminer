@@ -5,17 +5,18 @@ using System.Windows.Input;
 
 namespace NTMiner.Vms {
     public class LoginWindowViewModel : ViewModelBase {
-        private string _hostAndPort;
         private string _loginName;
         private string _password;
         private Visibility _isPasswordAgainVisible = Visibility.Collapsed;
         private string _passwordAgain;
+        private String _serverHost;
 
         public ICommand ActiveAdmin { get; private set; }
 
         public LoginWindowViewModel() {
-            this._hostAndPort = $"{Server.ControlCenterHost}:{WebApiConst.ControlCenterPort}";
             this._loginName = "admin";
+            this._serverHost = NTMinerRegistry.GetControlCenterHost();
+            this.IsInnerIp = Ip.Util.IsInnerIp(_serverHost);
             this.ActiveAdmin = new DelegateCommand(() => {
                 if (string.IsNullOrEmpty(this.Password)) {
                     this.ShowMessage("密码不能为空");
@@ -32,7 +33,7 @@ namespace NTMiner.Vms {
                         this.ShowMessage("激活成功", isSuccess: true);
                     }
                     else {
-                        this.ShowMessage(response != null ? response.Description : "激活失败");
+                        this.ShowMessage(response.ReadMessage(e));
                     }
                 });
             });
@@ -41,10 +42,10 @@ namespace NTMiner.Vms {
         public void ShowMessage(string message, bool isSuccess = false) {
             UIThread.Execute(() => {
                 if (isSuccess) {
-                    NotiCenterWindowViewModel.Current.Manager.ShowSuccessMessage(message);
+                    NotiCenterWindowViewModel.Instance.Manager.ShowSuccessMessage(message);
                 }
                 else {
-                    NotiCenterWindowViewModel.Current.Manager.CreateMessage()
+                    NotiCenterWindowViewModel.Instance.Manager.CreateMessage()
                         .Error(message)
                         .Dismiss()
                         .WithDelay(TimeSpan.FromSeconds(2))
@@ -53,21 +54,29 @@ namespace NTMiner.Vms {
             });
         }
 
+        public string ServerHost {
+            get => _serverHost;
+            set {
+                _serverHost = value;
+                OnPropertyChanged(nameof(ServerHost));
+                this.IsInnerIp = Ip.Util.IsInnerIp(value);
+                OnPropertyChanged(nameof(IsInnerIp));
+            }
+        }
+
+        public bool IsInnerIp {
+            get;set;
+        }
+
+        public int Port {
+            get { return Consts.ControlCenterPort; }
+        }
+
         public Visibility IsPasswordAgainVisible {
             get => _isPasswordAgainVisible;
             set {
                 _isPasswordAgainVisible = value;
                 OnPropertyChanged(nameof(IsPasswordAgainVisible));
-            }
-        }
-
-        public string HostAndPort {
-            get => _hostAndPort;
-            set {
-                if (_hostAndPort != value) {
-                    _hostAndPort = value;
-                    OnPropertyChanged(nameof(HostAndPort));
-                }
             }
         }
 

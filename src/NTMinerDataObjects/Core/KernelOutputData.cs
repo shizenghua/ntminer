@@ -12,7 +12,11 @@ namespace NTMiner.Core {
 
         public string Name { get; set; }
 
+        public string KernelRestartKeyword { get; set; }
+
         public bool PrependDateTime { get; set; }
+
+        public bool IsDualInSameLine { get; set; }
 
         public string TotalSpeedPattern { get; set; }
 
@@ -46,5 +50,15 @@ namespace NTMiner.Core {
         public string DualRejectPercentPattern { get; set; }
 
         public string DualGpuSpeedPattern { get; set; }
+
+        public string PoolDelayPattern { get; set; }
+
+        public string DualPoolDelayPattern { get; set; }
+
+        public string SpeedUnit { get; set; }
+
+        public string DualSpeedUnit { get; set; }
+
+        public int GpuBaseIndex { get; set; }
     }
 }

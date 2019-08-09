@@ -15,34 +15,37 @@ namespace NTMiner {
 
             public void ReportSpeedAsync(string host, SpeedData data) {
                 Task.Factory.StartNew(() => {
+                    TimeSpan timeSpan = TimeSpan.FromSeconds(3);
                     try {
                         using (HttpClient client = new HttpClient()) {
-                            Task<HttpResponseMessage> message = client.PostAsJsonAsync($"http://{host}:{WebApiConst.ControlCenterPort}/api/{SControllerName}/{nameof(IReportController.ReportSpeed)}", data);
-                            Write.DevLine("ReportSpeedAsync " + message.Result.ReasonPhrase);
+                            // 可能超过3秒钟，查查原因。因为我的网络不稳经常断线。
+                            client.Timeout = timeSpan;
+                            Task<HttpResponseMessage> message = client.PostAsJsonAsync($"http://{host}:{Consts.ControlCenterPort}/api/{SControllerName}/{nameof(IReportController.ReportSpeed)}", data);
+                            Write.DevDebug($"{nameof(ReportSpeedAsync)} {message.Result.ReasonPhrase}");
                         }
                     }
-                    catch (Exception e) {
-                        e = e.GetInnerException();
-                        Logger.ErrorDebugLine(e.Message, e);
+                    catch {
+                        // 吞掉异常，以免用户恐慌
                     }
                 });
             }
 
             public void ReportStateAsync(string host, Guid clientId, bool isMining) {
                 Task.Factory.StartNew(() => {
+                    TimeSpan timeSpan = TimeSpan.FromSeconds(3);
                     try {
                         using (HttpClient client = new HttpClient()) {
+                            client.Timeout = timeSpan;
                             ReportState request = new ReportState {
                                 ClientId = clientId,
                                 IsMining = isMining
                             };
-                            Task<HttpResponseMessage> message = client.PostAsJsonAsync($"http://{host}:{WebApiConst.ControlCenterPort}/api/{SControllerName}/{nameof(IReportController.ReportState)}", request);
-                            Write.DevLine("ReportStateAsync " + message.Result.ReasonPhrase);
+                            Task<HttpResponseMessage> message = client.PostAsJsonAsync($"http://{host}:{Consts.ControlCenterPort}/api/{SControllerName}/{nameof(IReportController.ReportState)}", request);
+                            Write.DevDebug($"{nameof(ReportStateAsync)} {message.Result.ReasonPhrase}");
                         }
                     }
-                    catch (Exception e) {
-                        e = e.GetInnerException();
-                        Logger.ErrorDebugLine(e.Message, e);
+                    catch {
+                        // 吞掉异常，以免用户恐慌
                     }
                 });
             }

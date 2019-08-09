@@ -1,6 +1,6 @@
 ﻿using LiteDB;
-using System;
 using NTMiner.Core;
+using System;
 using System.Text;
 
 namespace NTMiner.Profile {
@@ -33,11 +33,11 @@ namespace NTMiner.Profile {
         public string Password { get; set; }
 
         public override string ToString() {
-            return $"{PoolId}{UserName}{Password}";
+            return this.BuildSign().ToString();
         }
 
         public StringBuilder GetSignData() {
-            return new StringBuilder(this.ToString());
+            return this.BuildSign();
         }
     }
 }

@@ -10,9 +10,10 @@ namespace NTMiner.Logging {
 
         public Log4NetLoggingService() {
             XmlDocument xmlDoc = new XmlDocument();
-            string logFile = "logs\\root.log";
+            string logFileName = $"root{AssemblyInfo.Version}.{AssemblyInfo.Build}.log";
+            string logFile = $"logs\\{logFileName}";
             if (!string.IsNullOrEmpty(LogDir.Dir)) {
-                logFile = Path.Combine(LogDir.Dir, "root.log");
+                logFile = Path.Combine(LogDir.Dir, logFileName);
             }
             xmlDoc.LoadXml(
 $@"<log4net>
@@ -40,62 +41,52 @@ $@"<log4net>
         }
 
         public void Debug(object message) {
-            Write.DevLine(message?.ToString(), ConsoleColor.White);
+            Write.DevLine(message?.ToString());
             _log.Debug(message);
         }
 
         public void InfoDebugLine(object message) {
-            Write.DevLine(message?.ToString(), ConsoleColor.Gray);
+            Write.DevDebug(message?.ToString());
             _log.Info(message);
         }
 
         public void OkDebugLine(object message) {
-            Write.DevLine(message?.ToString(), ConsoleColor.Green);
+            Write.DevOk(message?.ToString());
             _log.Info(message);
         }
 
         public void WarnDebugLine(object message) {
-            Write.DevLine(message?.ToString(), ConsoleColor.Yellow);
+            Write.DevWarn(message?.ToString());
             _log.Warn(message);
         }
 
-        public void WarnDebugLine(object message, Exception exception) {
-            Write.DevLine(message?.ToString() + exception.StackTrace, ConsoleColor.Yellow);
-            _log.Warn(message, exception);
-        }
-
         public void ErrorDebugLine(object message) {
-            Write.DevLine(message?.ToString(), ConsoleColor.Red);
+            Write.DevError(message?.ToString());
             _log.Error(message);
         }
 
         public void ErrorDebugLine(object message, Exception exception) {
-            Write.DevLine(message?.ToString() + exception.StackTrace, ConsoleColor.Red);
+            Write.DevError(message?.ToString() + exception.StackTrace);
             _log.Error(message, exception);
         }
 
-        public void FatalDebugLine(object message) {
-            Write.DevLine(message?.ToString(), ConsoleColor.Red);
-            _log.Fatal(message);
-        }
-
-        public void FatalDebugLine(object message, Exception exception) {
-            Write.DevLine(message?.ToString() + exception.StackTrace, ConsoleColor.Red);
-            _log.Fatal(message, exception);
-        }
-
         public void OkWriteLine(object message) {
-            Write.UserLine(message?.ToString(), ConsoleColor.Green);
+            Write.UserOk(message?.ToString());
             _log.Info(message);
         }
 
         public void WarnWriteLine(object message) {
-            Write.UserLine(message?.ToString(), ConsoleColor.Yellow);
+            Write.UserWarn(message?.ToString());
             _log.Warn(message);
         }
 
+        public void EventWriteLine(object message) {
+            Write.UserEvent(message?.ToString());
+            _log.Info(message);
+        }
+
         public void ErrorWriteLine(object message) {
-            Write.UserLine(message?.ToString(), ConsoleColor.Red);
+            Write.UserError(message?.ToString());
             _log.Warn(message);
         }
     }

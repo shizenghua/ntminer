@@ -1,5 +1,4 @@
-﻿using LiteDB;
-using NTMiner.User;
+﻿using NTMiner.User;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -24,8 +23,8 @@ namespace NTMiner.Core.MinerServer.Impl {
                                 _dicByLoginName.Add(message.User.LoginName, entity);
                                 VirtualRoot.Happened(new UserAddedEvent(entity));
                             }
-                            else if (response != null) {
-                                Write.UserLine(response.Description, ConsoleColor.Red);
+                            else {
+                                Write.UserFail(response.ReadMessage(exception));
                             }
                         });
                     }
@@ -45,9 +44,7 @@ namespace NTMiner.Core.MinerServer.Impl {
                             if (!response.IsSuccess()) {
                                 entity.Update(oldValue);
                                 VirtualRoot.Happened(new UserUpdatedEvent(entity));
-                                if (response != null) {
-                                    Write.UserLine(response.Description, ConsoleColor.Red);
-                                }
+                                Write.UserFail(response.ReadMessage(exception));
                             }
                         });
                         VirtualRoot.Happened(new UserUpdatedEvent(entity));
@@ -62,15 +59,15 @@ namespace NTMiner.Core.MinerServer.Impl {
                                 _dicByLoginName.Remove(entity.LoginName);
                                 VirtualRoot.Happened(new UserRemovedEvent(entity));
                             }
-                            else if (response != null) {
-                                Write.UserLine(response.Description, ConsoleColor.Red);
+                            else {
+                                Write.UserFail(response.ReadMessage(exception));
                             }
                         });
                     }
                 });
         }
 
-        private object _locker = new object();
+        private readonly object _locker = new object();
         private bool _isInited = false;
 
         private void InitOnece() {
@@ -80,7 +77,7 @@ namespace NTMiner.Core.MinerServer.Impl {
                     if (!_isInited) {
                         Guid? clientId = null;
                         if (!VirtualRoot.IsMinerStudio) {
-                            clientId = ClientId.Id;
+                            clientId = VirtualRoot.Id;
                         }
                         var result = Server.ControlCenterService.GetUsers(clientId);
                         _dicByLoginName = result.ToDictionary(a => a.LoginName, a => a);

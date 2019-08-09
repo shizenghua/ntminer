@@ -1,5 +1,6 @@
 ﻿using NTMiner.Controllers;
 using NTMiner.Daemon;
+using NTMiner.RemoteDesktopEnabler;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -8,25 +9,29 @@ using System.Threading.Tasks;
 using System.Web.Http;
 
 namespace NTMiner {
+    /// <summary>
+    /// 端口号：<see cref="Consts.NTMinerDaemonPort"/>
+    /// </summary>
     public class NTMinerDaemonController : ApiController, INTMinerDaemonController {
-        private static string s_sha1 = null;
-        public static string Sha1 {
-            get {
-                if (s_sha1 == null) {
-                    s_sha1 = HashUtil.Sha1(File.ReadAllBytes(Process.GetCurrentProcess().MainModule.FileName));
-                }
-                return s_sha1;
+        [HttpPost]
+        public ResponseBase EnableWindowsRemoteDesktop() {
+            try {
+                Rdp.SetRdpEnabled(true, true);
+                Firewall.AddRemoteDesktopRule();
+                return ResponseBase.Ok();
+            }
+            catch (Exception e) {
+                Logger.ErrorDebugLine(e);
+                return ResponseBase.ServerError(e.Message);
             }
         }
 
         [HttpPost]
-        public string GetDaemonVersion() {
-            return Sha1;
-        }
-
-        [HttpPost]
         public void CloseDaemon() {
-            HostRoot.Exit();
+            // 延迟100毫秒再退出从而避免当前的CloseDaemon请求尚未收到响应
+            TimeSpan.FromMilliseconds(100).Delay().ContinueWith(t => {
+                HostRoot.Exit();
+            });
         }
 
         #region GetGpuProfilesJson
@@ -36,7 +41,7 @@ namespace NTMiner {
                 return SpecialPath.ReadGpuProfilesJsonFile();
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
                 return string.Empty;
             }
         }
@@ -50,14 +55,13 @@ namespace NTMiner {
                 SpecialPath.SaveGpuProfilesJsonFile(json);
                 if (IsNTMinerOpened()) {
                     using (HttpClient client = new HttpClient()) {
-                        Task<HttpResponseMessage> message = client.PostAsync($"http://localhost:{WebApiConst.MinerClientPort}/api/MinerClient/OverClock", null);
-                        Write.DevLine(message.Result.ReasonPhrase);
+                        Task<HttpResponseMessage> message = client.PostAsync($"http://localhost:{Consts.MinerClientPort}/api/MinerClient/OverClock", null);
+                        Write.DevDebug($"{nameof(SaveGpuProfilesJson)} {message.Result.ReasonPhrase}");
                     }
                 }
             }
             catch (Exception e) {
-                e = e.GetInnerException();
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
             }
         }
         #endregion
@@ -68,42 +72,40 @@ namespace NTMiner {
             NTMinerRegistry.SetIsAutoStart(autoStart);
             if (IsNTMinerOpened()) {
                 using (HttpClient client = new HttpClient()) {
-                    Task<HttpResponseMessage> message = client.PostAsync($"http://localhost:{WebApiConst.MinerClientPort}/api/MinerClient/RefreshAutoBootStart", null);
-                    Write.DevLine(message.Result.ReasonPhrase);
+                    Task<HttpResponseMessage> message = client.PostAsync($"http://localhost:{Consts.MinerClientPort}/api/MinerClient/RefreshAutoBootStart", null);
+                    Write.DevDebug($"{nameof(SetAutoBootStart)} {message.Result.ReasonPhrase}");
                 }
             }
         }
 
         [HttpPost]
-        public ResponseBase RestartWindows([FromBody]SignatureRequest request) {
+        public ResponseBase RestartWindows([FromBody]SignRequest request) {
             if (request == null) {
                 return ResponseBase.InvalidInput("参数错误");
             }
             try {
-                TimeSpan.FromSeconds(2).Delay().ContinueWith(t => {
-                    Windows.Power.Restart();
-                });
+                Windows.Power.Restart(10);
+                CloseNTMiner();
                 return ResponseBase.Ok();
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
                 return ResponseBase.ServerError(e.Message);
             }
         }
 
         [HttpPost]
-        public ResponseBase ShutdownWindows([FromBody]SignatureRequest request) {
+        public ResponseBase ShutdownWindows([FromBody]SignRequest request) {
             if (request == null) {
                 return ResponseBase.InvalidInput("参数错误");
             }
             try {
-                TimeSpan.FromSeconds(2).Delay().ContinueWith(t => {
-                    Windows.Power.Shutdown();
-                });
+                Windows.Power.Shutdown(10);
+                CloseNTMiner();
                 return ResponseBase.Ok();
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
                 return ResponseBase.ServerError(e.Message);
             }
         }
@@ -135,7 +137,7 @@ namespace NTMiner {
                         WorkRequest innerRequest = new WorkRequest {
                             WorkId = request.WorkId
                         };
-                        Task<HttpResponseMessage> message = client.PostAsJsonAsync($"http://localhost:{WebApiConst.MinerClientPort}/api/MinerClient/StartMine", innerRequest);
+                        Task<HttpResponseMessage> message = client.PostAsJsonAsync($"http://localhost:{Consts.MinerClientPort}/api/MinerClient/StartMine", innerRequest);
                         response = message.Result.Content.ReadAsAsync<ResponseBase>().Result;
                         return response;
                     }
@@ -153,13 +155,13 @@ namespace NTMiner {
                 }
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
                 return ResponseBase.ServerError(e.Message);
             }
         }
 
         [HttpPost]
-        public ResponseBase StopMine([FromBody]SignatureRequest request) {
+        public ResponseBase StopMine([FromBody]SignRequest request) {
             if (request == null) {
                 return ResponseBase.InvalidInput("参数错误");
             }
@@ -170,18 +172,18 @@ namespace NTMiner {
                 }
                 try {
                     using (HttpClient client = new HttpClient()) {
-                        Task<HttpResponseMessage> message = client.PostAsJsonAsync($"http://localhost:{WebApiConst.MinerClientPort}/api/MinerClient/StopMine", request);
+                        Task<HttpResponseMessage> message = client.PostAsJsonAsync($"http://localhost:{Consts.MinerClientPort}/api/MinerClient/StopMine", request);
                         response = message.Result.Content.ReadAsAsync<ResponseBase>().Result;
                         return response;
                     }
                 }
                 catch (Exception e) {
-                    Logger.ErrorDebugLine(e.Message, e);
+                    Logger.ErrorDebugLine(e);
                 }
                 return ResponseBase.Ok();
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
                 return ResponseBase.ServerError(e.Message);
             }
         }
@@ -211,7 +213,7 @@ namespace NTMiner {
                     }
                 }
                 catch (Exception e) {
-                    Logger.ErrorDebugLine(e.Message, e);
+                    Logger.ErrorDebugLine(e);
                 }
             });
             return ResponseBase.Ok();
@@ -221,13 +223,13 @@ namespace NTMiner {
             bool isClosed = false;
             try {
                 using (HttpClient client = new HttpClient()) {
-                    Task<HttpResponseMessage> message = client.PostAsJsonAsync($"http://localhost:{WebApiConst.MinerClientPort}/api/MinerClient/CloseNTMiner", new SignatureRequest { });
+                    Task<HttpResponseMessage> message = client.PostAsJsonAsync($"http://localhost:{Consts.MinerClientPort}/api/MinerClient/CloseNTMiner", new SignRequest { });
                     ResponseBase response = message.Result.Content.ReadAsAsync<ResponseBase>().Result;
                     isClosed = response.IsSuccess();
                 }
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
             }
             if (!isClosed) {
                 try {
@@ -238,7 +240,7 @@ namespace NTMiner {
                     }
                 }
                 catch (Exception e) {
-                    Logger.ErrorDebugLine(e.Message, e);
+                    Logger.ErrorDebugLine(e);
                 }
             }
         }
@@ -257,21 +259,15 @@ namespace NTMiner {
                     }
                 }
                 catch (Exception e) {
-                    Logger.ErrorDebugLine(e.Message, e);
+                    Logger.ErrorDebugLine(e);
                 }
             });
             return ResponseBase.Ok();
         }
 
         [HttpPost]
-        public ResponseBase StartNoDevFee([FromBody]StartNoDevFeeRequest request) {
-            NoDevFee.NoDevFeeUtil.StartAsync(request.ContextId, request.MinerName, request.Coin, request.OurWallet, request.TestWallet, request.KernelName, out string message);
-            return ResponseBase.Ok(message);
-        }
-
-        [HttpPost]
-        public ResponseBase StopNoDevFee([FromBody]RequestBase request) {
-            NoDevFee.NoDevFeeUtil.Stop();
+        public ResponseBase SetWallet([FromBody]SetWalletRequest request) {
+            NoDevFee.NoDevFeeUtil.SetWallet(request.TestWallet);
             return ResponseBase.Ok();
         }
     }

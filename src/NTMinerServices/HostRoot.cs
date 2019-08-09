@@ -1,37 +1,44 @@
 ﻿using Aliyun.OSS;
 using LiteDB;
+using NTMiner.AppSetting;
 using NTMiner.Data;
 using NTMiner.Data.Impl;
 using NTMiner.User;
 using System;
 using System.IO;
-using System.Linq;
 using System.Threading;
 
 namespace NTMiner {
     public class HostRoot : IHostRoot {
-        public static EventWaitHandle WaitHandle = new AutoResetEvent(false);
+        private static EventWaitHandle WaitHandle = new AutoResetEvent(false);
+        public static readonly bool IsNotOfficial = Environment.CommandLine.IndexOf("--notofficial", StringComparison.OrdinalIgnoreCase) != -1;
+        public static readonly bool EnableInnerIp = Environment.CommandLine.IndexOf("--enableInnerIp", StringComparison.OrdinalIgnoreCase) != -1;
         public static ExtendedNotifyIcon NotifyIcon;
-        private static Mutex s_mutexApp;
+        private static Mutex _sMutexApp;
+        // 该程序编译为控制台程序，如果不启用内网支持则默认设置为开机自动启动
+        [STAThread]
         static void Main(string[] args) {
+            VirtualRoot.StartTimer();
             try {
                 Console.Title = "NTMinerServices";
                 bool mutexCreated;
                 try {
-                    s_mutexApp = new Mutex(true, "NTMinerServicesMutex", out mutexCreated);
+                    _sMutexApp = new Mutex(true, "NTMinerServicesMutex", out mutexCreated);
                 }
                 catch {
                     mutexCreated = false;
                 }
                 if (mutexCreated) {
-                    NTMinerRegistry.SetAutoBoot("NTMinerServices", true);
+                    if (!EnableInnerIp) {
+                        NTMinerRegistry.SetAutoBoot("NTMinerServices", true);
+                    }
                     Type thisType = typeof(HostRoot);
-                    NotifyIcon = ExtendedNotifyIcon.Create(new System.Drawing.Icon(thisType.Assembly.GetManifestResourceStream(thisType, "logo.ico")), "群控服务", isShowNotifyIcon: true);
+                    NotifyIcon = ExtendedNotifyIcon.Create(new System.Drawing.Icon(thisType.Assembly.GetManifestResourceStream(thisType, "logo.ico")), "本机群控服务", isShowNotifyIcon: false);
                     Run();
                 }
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
             }
         }
 
@@ -40,7 +47,7 @@ namespace NTMiner {
             if (!_isClosed) {
                 _isClosed = true;
                 HttpServer.Stop();
-                s_mutexApp?.Dispose();
+                _sMutexApp?.Dispose();
                 NotifyIcon?.Dispose();
             }
         }
@@ -52,16 +59,14 @@ namespace NTMiner {
 
         private static void Run() {
             try {
-                string baseAddress = $"http://localhost:{WebApiConst.ControlCenterPort}";
+                string baseAddress = $"http://localhost:{Consts.ControlCenterPort}";
                 HttpServer.Start(baseAddress);
-                Windows.ConsoleHandler.Register(() => {
-                    Close();
-                });
+                Windows.ConsoleHandler.Register(Close);
                 WaitHandle.WaitOne();
                 Close();
             }
             catch (Exception e) {
-                Logger.ErrorDebugLine(e.Message, e);
+                Logger.ErrorDebugLine(e);
             }
             finally {
                 Close();
@@ -70,7 +75,7 @@ namespace NTMiner {
 
         public DateTime StartedOn { get; private set; } = DateTime.Now;
 
-        public static readonly IHostRoot Current = new HostRoot();
+        public static readonly IHostRoot Instance = new HostRoot();
         public static readonly ClientCount ClientCount = new ClientCount();
 
         private OssClient _ossClient = null;
@@ -83,11 +88,10 @@ namespace NTMiner {
         }
 
         #region OSSClientInit
-        private readonly bool _isNotOfficial = Environment.CommandLine.IndexOf("--notofficial", StringComparison.OrdinalIgnoreCase) != -1;
         private DateTime _ossClientOn = DateTime.MinValue;
         private readonly object _ossClientLocker = new object();
         private void OssClientInit() {
-            if (_isNotOfficial) {
+            if (IsNotOfficial) {
                 this.HostConfig = HostConfigData.LocalHostConfig;
             }
             else {
@@ -110,11 +114,11 @@ namespace NTMiner {
                             string accessKeySecret = hostConfigData.OssAccessKeySecret;
                             string endpoint = hostConfigData.OssEndpoint;
                             _ossClientOn = DateTime.Now;
-                            _ossClient = new OssClient(endpoint, accessKeyId, accessKeySecret);
                         }
                     }
                 }
             }
+            _ossClient = new OssClient(this.HostConfig.OssEndpoint, this.HostConfig.OssAccessKeyId, this.HostConfig.OssAccessKeySecret);
         }
         #endregion
 
@@ -130,7 +134,7 @@ namespace NTMiner {
         private HostRoot() {
             OssClientInit();
             this.UserSet = new UserSet(SpecialPath.LocalDbFileFullName);
-            this.AppSettingSet = new AppSettingSet(SpecialPath.LocalDbFileFullName);
+            this.AppSettingSet = new LocalAppSettingSet(SpecialPath.LocalDbFileFullName);
             this.CalcConfigSet = new CalcConfigSet(this);
             this.ColumnsShowSet = new ColumnsShowSet(this);
             this.ClientSet = new ClientSet(this);

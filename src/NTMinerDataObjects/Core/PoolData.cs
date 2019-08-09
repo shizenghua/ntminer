@@ -9,16 +9,22 @@ namespace NTMiner.Core {
         public PoolData(IPool data) {
             this.DataLevel = data.DataLevel;
             this.Id = data.CoinId;
+            this.BrandId = data.BrandId;
             this.CoinId = data.CoinId;
             this.Name = data.Name;
             this.Server = data.Server;
             this.Url = data.Url;
+            this.Website = data.Website;
             this.SortNumber = data.SortNumber;
-            this.PublishState = data.PublishState;
-            this.Description = data.Description;
             this.IsUserMode = data.IsUserMode;
             this.UserName = data.UserName;
             this.Password = data.Password;
+            this.Notice = data.Notice;
+            this.TutorialUrl = data.TutorialUrl;
+            this.NoPool1 = data.NoPool1;
+            this.NotPool1 = data.NotPool1;
+            this.MinerNamePrefix = data.MinerNamePrefix;
+            this.MinerNamePostfix = data.MinerNamePostfix;
         }
 
         public Guid GetId() {
@@ -34,6 +40,8 @@ namespace NTMiner.Core {
 
         public Guid Id { get; set; }
 
+        public Guid BrandId { get; set; }
+
         public Guid CoinId { get; set; }
 
         public string Name { get; set; }
@@ -42,11 +50,9 @@ namespace NTMiner.Core {
 
         public string Url { get; set; }
 
+        public string Website { get; set; }
+
         public int SortNumber { get; set; }
-
-        public PublishStatus PublishState { get; set; }
-
-        public string Description { get; set; }
 
         public bool IsUserMode { get; set; }
 
@@ -54,21 +60,20 @@ namespace NTMiner.Core {
 
         public string Password { get; set; }
 
+        public string Notice { get; set; }
+
+        public string TutorialUrl { get; set; }
+
+        public bool NoPool1 { get; set; }
+
+        public bool NotPool1 { get; set; }
+
+        public string MinerNamePrefix { get; set; }
+
+        public string MinerNamePostfix { get; set; }
+
         public StringBuilder GetSignData() {
-            StringBuilder sb = new StringBuilder();
-            sb.Append(nameof(Id)).Append(Id)
-                .Append(nameof(DataLevel)).Append(DataLevel)
-                .Append(nameof(CoinId)).Append(CoinId)
-                .Append(nameof(Name)).Append(Name)
-                .Append(nameof(Server)).Append(Server)
-                .Append(nameof(Url)).Append(Url)
-                .Append(nameof(SortNumber)).Append(SortNumber)
-                .Append(nameof(PublishState)).Append(PublishState)
-                .Append(nameof(Description)).Append(Description)
-                .Append(nameof(IsUserMode)).Append(IsUserMode)
-                .Append(nameof(UserName)).Append(UserName)
-                .Append(nameof(Password)).Append(Password);
-            return sb;
+            return this.BuildSign();
         }
     }
 }
